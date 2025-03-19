@@ -4,14 +4,16 @@ library(geojsonio)
 library(sf)
 
 fluidPage(
-  titlePanel("Singapore Master Plan 2019 Subzone Boundary (No Sea)"),
-  
+  titlePanel("Polygon Plotter"),
   sidebarLayout(
     sidebarPanel(
-      ),
-    
+      selectInput("pln_area", 
+                  label = "Select PLN Area", 
+                  choices = NULL),
+      actionButton("draw_btn", "Draw Polygon")
+    ),
     mainPanel(
       leafletOutput("map")
-      )
     )
   )
+)

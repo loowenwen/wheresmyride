@@ -1,15 +1,17 @@
 library(shiny)
+library(leaflet)
+library(geojsonio)
+library(sf)
 
 fluidPage(
-  titlePanel("Where's My Ride?"),
+  titlePanel("Singapore Master Plan 2019 Subzone Boundary (No Sea)"),
   
   sidebarLayout(
     sidebarPanel(
-      textInput("name", "inputname")
       ),
     
     mainPanel(
-      textOutput("greeting")
+      leafletOutput("map")
       )
     )
   )

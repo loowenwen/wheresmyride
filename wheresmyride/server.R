@@ -1,7 +1,11 @@
 library(shiny)
+library(leaflet)
+library(geojsonio)
+library(sf)
 
 function(input, output, session) {
-  output$greeting <- renderText({
-    paste("hi", input$name)
+  output$map <- renderLeaflet({
+    leaflet() %>%
+      addTiles()
     })
   }

@@ -2,8 +2,10 @@ library(jsonlite)
 library(stringr)
 library(dplyr)
 library(geojsonio)
+library(tidyr)
+library(sf)
 
-# import geojson file #
+# IMPORT GEOJSON FILE #
 
 geojson_raw <- fromJSON("data/Master Plan 2019 Subzone Boundary (No Sea) (GEOJSON).geojson", flatten = TRUE)
 features <- geojson_raw$features
@@ -29,7 +31,7 @@ extracted_data <- do.call(rbind, lapply(features$properties.Description, extract
 features_clean <- cbind(features, extracted_data)
 
 
-# reformat data #
+# REFORMAT DATA #
 
 # remove properties.Name and properties.Description columns
 features_clean <- features_clean %>%
@@ -40,7 +42,7 @@ colnames(features_clean) <- gsub("geometry\\.", "", colnames(features_clean))
 colnames(features_clean) <- tolower(colnames(features_clean))
 
 
-# leaflet map (trial and error) #
+# LEAFLET MAP (TRIAL AND ERROR) #
 library(leaflet)
 library(dplyr)
 library(purrr)
@@ -48,22 +50,50 @@ library(purrr)
 # extract the coordinates
 polygon_data <- features_clean %>%
   filter(type == "Polygon") %>%
-  mutate(polygon_coords = map(coordinates, ~{
-    coords <- as.data.frame(.x[[1]])
-    coords <- t(coords)
-    return(coords)
-    })
-  )
+  mutate(polygon_coords = map(coordinates, function(coord) {
+    if (length(dim(coord)) == 3 && dim(coord)[3] >= 2) {
+      coords_matrix <- coord[, , 1:2]
+    } else {
+      coords_matrix <- matrix(NA, nrow = 1, ncol = 2)
+    }
+    coords_df <- as.data.frame(coords_matrix)
+    colnames(coords_df) <- c("longitude", "latitude")
+    return(coords_df)
+  }))
 
-# create the leaflet map for polygons
-leaflet(polygon_data) %>%
-  addTiles() %>%
-  addPolygons(
-    lat = ~map_dbl(polygon_coords, ~.x[2]),
-    lng = ~map_dbl(polygon_coords, ~.x[1]),  
-    popup = ~as.character(pln_area_n),  
-    color = "blue",  
-    weight = 2,      
-    fillColor = "yellow",  
-    fillOpacity = 0.5 
-  )
+polygon_data$polygon_coords[[209]] <- 
+  as.data.frame(features_clean$coordinates[[209]][,,1:2])
+colnames(polygon_data$polygon_coords[[209]]) <- c("longitude", "latitude")
+
+
+# TIDY FORMAT THE POLYGON DATA #
+
+combined_data <- list()
+
+# loop through each row of polygon_data
+for (i in 1:nrow(polygon_data)) {
+  # extract metadata (all columns except polygon_coords)
+  metadata <- polygon_data[i, -which(names(polygon_data) == "polygon_coords")]
+  
+  # extract the nested dataframe from polygon_coords
+  coords_df <- polygon_data$polygon_coords[[i]]
+  
+  # ensure the nested dataframe has the correct column names
+  colnames(coords_df) <- c("longitude", "latitude")
+  
+  # repeat the metadata for each row in the nested dataframe
+  repeated_metadata <- metadata[rep(1, nrow(coords_df)), ]
+  
+  # combine the coordinates and metadata
+  combined_row <- cbind(coords_df, repeated_metadata)
+  
+  # append the combined data to the list
+  combined_data[[i]] <- combined_row
+}
+
+# combine all the data in the list into a single tidy dataframe
+tidy_data <- do.call(rbind, combined_data) %>%
+  select(-type, -coordinates)
+
+# save tidy_data to a CSV File
+write.csv(tidy_data, file = "masterplan.csv", row.names = TRUE)

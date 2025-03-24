@@ -138,28 +138,38 @@ bus_routes %>% filter(ServiceNo == "291")
 
 
 
+##CODE TO FIND MRT ROUTES
 
-##TRYING ONEMAP API
+train_station_codes <- read_excel("../data/TrainStationCodes_Chinese Names.xls") %>% select(-c(mrt_station_chinese, mrt_line_chinese))
+train_line_df <- read_excel("../data/TrainLineCodes.xlsx") %>% 
+  select(-'Shuttle Direction') %>%
+  separate_rows(`MRT/LRT Direction`, sep = "\\s*\\r\\n\\s*") %>%
+  mutate(`MRT/LRT Direction` = str_remove(`MRT/LRT Direction`, "^\\d+\\)\\s*")) %>%  # Remove "1)", "2)", etc.
+  mutate(`MRT/LRT Direction` = str_trim(`MRT/LRT Direction`))
+
+  
 
 
 
 #install and load
 library(httr)
 library(jsonlite)
+library(igraph)
+library(sf)
 
 # Replace with your actual token
 auth_token <- "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0Mzc4NGMyOTcwMzdjMjQ1MWU5YTk2NmM0YjJlYjAxNyIsImlzcyI6Imh0dHA6Ly9pbnRlcm5hbC1hbGItb20tcHJkZXppdC1pdC1uZXctMTYzMzc5OTU0Mi5hcC1zb3V0aGVhc3QtMS5lbGIuYW1hem9uYXdzLmNvbS9hcGkvdjIvdXNlci9wYXNzd29yZCIsImlhdCI6MTc0Mjc4NTQ2MywiZXhwIjoxNzQzMDQ0NjYzLCJuYmYiOjE3NDI3ODU0NjMsImp0aSI6IjJWWTdRcjI1WTFmT3RReEIiLCJ1c2VyX2lkIjo2NDYyLCJmb3JldmVyIjpmYWxzZX0.1RWOxOmv6qLemIyAlgPyTOPzSXVgelw-PHAT6VofVao"
 
 base_url <- "https://www.onemap.gov.sg/api/public/routingsvc/route"
 query_params <- list(
-  start = "1.393027,103.844150",
-  end = "1.370669,103.8824",
-  routeType = "pt",
+  start = "1.298921,103.7744", #YUSOF ISHAK HSE
+  end = "1.355948,103.9372",  #BELOW BLOCK 702
+  routeType = "walk",
   date = "08-13-2023",
   time = "13:00:00",
-  mode = "BUS",
-  maxWalkDistance = "5000",
-  numItineraries = "3"
+  mode = "WALKING",
+  maxWalkDistance = "10000",
+  numItineraries = "1"
 )
 
 # Make the GET request

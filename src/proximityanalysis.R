@@ -1,5 +1,4 @@
 # AUTHENTICATION
-
 library(httr)
 library(jsonlite)
 
@@ -37,46 +36,42 @@ if (status_code(response) == 200) {
   print(paste("Error:", status_code(response)))
 }
 
-## PLANNING AREA QUERY
+## PLANNING AREA QUERY FUNCTION
 library(httr)
 
-# define the URL and headers
-url <- "https://www.onemap.gov.sg/api/public/popapi/getPlanningarea"
-
-# define parameters
-latitude = "1.3" 
-longitude = "103.8"
-year = "2019"
-
-# replace with your actual API token
-authToken <- token
-
-# construct full URL with parameters
-request_url <- paste0(url, 
-                      "?latitude=", latitude, 
-                      "&longitude=", longitude,
-                      "&year=", year
-)
-
-# make API request
-response <- GET(
-  url = request_url,
-  add_headers(Authorization = authToken)
-)
-
-# check response status
-if (status_code(response) == 200) {
-  # parse JSON response
-  result <- content(response, as = "text", encoding = "UTF-8")
-  data <- fromJSON(result)
-  print(data)  # print response data
-} else {
-  print(paste("Error:", status_code(response)))
+get_planning_area <- function(latitude, longitude, year = "2019") {
+  # define the URL and headers
+  url <- "https://www.onemap.gov.sg/api/public/popapi/getPlanningarea"
+  # replace with your actual API token
+  authToken <- token
+  
+  # construct full URL with parameters
+  request_url <- paste0(url, 
+                        "?latitude=", latitude, 
+                        "&longitude=", longitude,
+                        "&year=", year
+  )
+  # make API request
+  response <- GET(
+    url = request_url,
+    add_headers(Authorization = authToken)
+  )
+  
+  # check response status
+  if (status_code(response) == 200) {
+    # parse JSON response
+    result <- content(response, as = "text", encoding = "UTF-8")
+    data <- fromJSON(result)
+    print(result)  # print response data
+  } else {
+    print(paste("Error:", status_code(response)))
+  }
+  
 }
 
 
 
-##EXTRACT COORDINATES
+##EXTRACT COORDINATES from PLANNING AREA FUNCTION
 extract_coordinates <- function(output) {
   # Parse the JSON response
   response <- fromJSON(output)
@@ -98,19 +93,13 @@ extract_coordinates <- function(output) {
   return(coords_df)
 }
 
-coords_df <- extract_coordinates(output = result)
-
-##ploting (wanted to quickly see a visual)
-bedok_sf <- st_as_sf(coords_df, coords = c("longitude", "latitude"), crs = 4326)
-plot(st_geometry(bedok_sf), col = "lightblue", main = "Bedok Planning Area Polygon")
-bedok_centroid <- st_centroid(st_union(bedok_sf))
-plot(st_geometry(bedok_sf), col = "lightblue", main = "Bedok Planning Area with Centroid")
-plot(st_geometry(bedok_centroid), col = "red", pch = 19, add = TRUE)
+coord_df <- extract_coordinates(output = get_planning_area("1.3", "103.8"))
 
 
-##FUNCTION TO COUNT NEARBY BUS STOPS
-# Define the function to count nearby bus stops
-count_nearby_bus_stops <- function(planning_region_df, bus_stops_df, buffer_distance = 45000, crs_from = 4326, crs_to = 3414) {
+##FUNCTION TO COUNT NEARBY BUS STOPS/NEARBY MRT STATIONS
+# Define the function to count nearby bus stops/mrt stations
+
+count_nearby_transit_stops <- function(planning_region_df, bus_stops_df, buffer_distance = 45000, crs_from = 4326, crs_to = 3414) {
   
   #ensures precision
   planning_region_df$longitude <- as.numeric(format(planning_region_df$longitude, scientific = FALSE, digits = 15))
@@ -145,4 +134,19 @@ count_nearby_bus_stops <- function(planning_region_df, bus_stops_df, buffer_dist
   return(count_nearby)
 }
 
-count_nearby_bus_stops(coords_df, bus_stops_final)
+
+
+count_nearby_transit_stops(coord_df, mrt_station_finalfixed)
+
+
+
+
+##plotting (wanted to quickly see a visual)
+bedok_sf <- st_as_sf(coords_df, coords = c("longitude", "latitude"), crs = 4326)
+plot(st_geometry(bedok_sf), col = "lightblue", main = "Bedok Planning Area Polygon")
+bedok_centroid <- st_centroid(st_union(bedok_sf))
+plot(st_geometry(bedok_sf), col = "lightblue", main = "Bedok Planning Area with Centroid")
+plot(st_geometry(bedok_centroid), col = "red", pch = 19, add = TRUE)
+
+
+

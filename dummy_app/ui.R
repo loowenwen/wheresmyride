@@ -1,7 +1,7 @@
 library(shiny)
 library(leaflet)
 library(plotly)
-library(shinythemes)  # For professional themes
+library(shinythemes)
 library(bslib)
 
 # Define UI for the application
@@ -40,7 +40,7 @@ shinyUI(
             h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
             verbatimTextOutput("location_summary")
           ),
-          
+        
           # Main panel for displaying outputs
           mainPanel(
             style = "background-color: #FFFFFF; padding: 20px; border-radius: 10px;",

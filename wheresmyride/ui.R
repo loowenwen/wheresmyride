@@ -1,9 +1,7 @@
 library(shiny)
-library(shinythemes)
 
 shinyUI(
   fluidPage(
-    theme = shinytheme("journal"),  # apply journal theme
     
     # application title
     titlePanel(
@@ -28,9 +26,9 @@ shinyUI(
     # tabbed layout for multiple features
     tabsetPanel(
       
-      # Tab 1: Location Search
+      # tab 1: overview
       tabPanel(
-        "Location Search",
+        "Overview",
         sidebarLayout(
           sidebarPanel(
             style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
@@ -63,53 +61,67 @@ shinyUI(
         )
       ),
       
-      # Tab 2: Accessibility Analysis
+      # tab 2: accessibility analysis
       tabPanel(
         "Accessibility Analysis",
         sidebarLayout(
           sidebarPanel(
-            style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
+            # Section for personalized travel time map
+            h4("Personalized Travel Time Map"),
+            textInput("location", "Enter Home Location (Postal Code / MRT Station):"),
+            numericInput("time_limit", "Select Time Limit (in minutes):", value = 30, min = 1, max = 60, step = 5),
+            selectInput("transport_mode", "Choose Transport Mode:", choices = c("MRT", "Bus", "Mixed-mode")),
+            actionButton("generate_map", "Generate Map"),
             
-            # Input: Dropdown to select region
-            selectInput("region", "Select Planning Region", 
-                        choices = c("Central", "East", "North", "North-East", "West"),
-                        selected = "Central"),
+            hr(),
             
-            # Input: Slider to select time of day
-            sliderInput("time", "Select Time of Day", 
-                        min = 0, max = 23, value = 12, step = 1),
+            # Section for commute time estimator
+            h4("Commute Time Estimator"),
+            textInput("home_location", "Home Location (BTO Estate):"),
+            textInput("workplace", "Workplace / Destination:"),
+            actionButton("estimate_commute", "Estimate Commute"),
             
-            # Input: Checkbox to toggle between bus and MRT accessibility
-            checkboxGroupInput("transport_mode", "Transport Mode", 
-                               choices = c("Bus", "MRT"), selected = c("Bus", "MRT")),
+            hr(),
             
-            # Output: Text summary of accessibility
-            h4("Accessibility Summary", style = "color: #2C3E50; margin-top: 20px;"),
-            verbatimTextOutput("accessibility_summary"),
+            # Section for specific postal code accessibility scores
+            h4("Postal Code Accessibility Score"),
+            textInput("postal_code", "Enter Postal Code:"),
+            actionButton("get_score", "Get Accessibility Score"),
             
-            # Output: Text summary of travel time
-            h4("Travel Time Summary", style = "color: #2C3E50; margin-top: 20px;"),
-            verbatimTextOutput("travel_time_summary")
+            hr(),
+            
+            # Section for dynamic MLR inputs
+            h4("Adjust MLR Inputs"),
+            sliderInput("mrt_weight", "MRT Importance (0-100):", min = 0, max = 100, value = 50),
+            sliderInput("bus_weight", "Bus Importance (0-100):", min = 0, max = 100, value = 50),
+            sliderInput("congestion_weight", "Peak-Hour Congestion Impact (0-100):", min = 0, max = 100, value = 50),
+            sliderInput("walking_time_weight", "Walking Time from Nearest Stop (0-100):", min = 0, max = 100, value = 50),
+            actionButton("recalculate_score", "Recalculate Accessibility Score")
           ),
           
-          # Main panel for displaying outputs
           mainPanel(
-            style = "background-color: #FFFFFF; padding: 20px; border-radius: 10px;",
+            # Display map for travel time visualization
+            leafletOutput("travel_time_map"),
             
-            # Output: Bar plot of accessibility scores
-            h4("Accessibility Scores by Region", style = "color: #2C3E50;"),
-            plotlyOutput("accessibility_plot", height = "300px"),
+            hr(),
             
-            # Output: Table of optimal route details
-            h4("Optimal Route Details", style = "color: #2C3E50; margin-top: 20px;"),
-            tableOutput("optimal_route_table")
+            # Display estimated commute time results
+            h4("Estimated Commute Time"),
+            verbatimTextOutput("commute_time_result"),
+            
+            hr(),
+            
+            # Display accessibility score and transport options
+            h4("Accessibility Score & Transport Options"),
+            verbatimTextOutput("accessibility_score_result"),
+            verbatimTextOutput("last_mile_info")
           )
         )
       ),
       
-      # Tab 3: Optimal Route Planner
+      # tab 3: comparing transport accessibility
       tabPanel(
-        "Optimal Route Planner",
+        "Comparing Transport Accessibility",
         sidebarLayout(
           sidebarPanel(
             style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
@@ -138,9 +150,38 @@ shinyUI(
             # Output: Table of route steps
             h4("Route Steps", style = "color: #2C3E50; margin-top: 20px;"),
             tableOutput("route_steps_table")
+            )
           )
         )
-      )
-    )
+      ),
+    
+    # add custom CSS to change tab labels
+    tags$head(
+      tags$style(HTML("
+    .nav-tabs > li > a {
+      color: #023047 !important;  
+      font-family: 'Times New Roman', serif !important;
+      font-size: 20px !important;
+      font-weight: bold !important;
+      text-align: center;
+      background-color: white !important; /* Light blue background */
+      border-radius: 5px !important; /* Rounded tabs */
+    }
+
+    /* change tab appearance when hovered */
+    .nav-tabs > li > a:hover {
+      background-color: #8ecae6 !important;
+      color: white !important;
+    }
+
+    /* force active tab to retain color instead of turning grey */
+    .nav-tabs > li.active > a,
+    .nav-tabs > li.active > a:focus,
+    .nav-tabs > li.active > a:hover {
+      background-color: #023047 !important; 
+      color: white !important;
+      border: none !important;
+    }
+  ")))
   )
 )

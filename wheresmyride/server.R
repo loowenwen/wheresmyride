@@ -47,35 +47,6 @@ shinyServer(function(input, output) {
     return(adjusted_time)
   })
   
-  # Output: Text summary of accessibility
-  output$accessibility_summary <- renderText({
-    paste("Accessibility Score for", input$region, ":", round(accessibility_score(), 2))
-  })
-  
-  # Output: Text summary of travel time
-  output$travel_time_summary <- renderText({
-    paste("Estimated Travel Time:", travel_time(), "minutes")
-  })
-  
-  # Output: Bar plot of accessibility scores
-  output$accessibility_plot <- renderPlotly({
-    plot_ly(regions, x = ~Region, y = ~Accessibility_Score, type = "bar", 
-            marker = list(color = "#18BC9C")) %>%
-      layout(yaxis = list(title = "Accessibility Score", gridcolor = "#ECF0F1"), 
-             xaxis = list(title = "Region", gridcolor = "#ECF0F1"),
-             plot_bgcolor = "#FFFFFF", paper_bgcolor = "#FFFFFF")
-  })
-  
-  # Output: Table of optimal route details (dummy implementation)
-  output$optimal_route_table <- renderTable({
-    if (input$calculate_route > 0) {
-      data.frame(
-        Step = c("Start at Home", "Take Bus 123", "Transfer to MRT Line A", "Arrive at Destination"),
-        Time = c("0 min", "10 min", "20 min", "30 min")
-      )
-    }
-  })
-  
   # Output: Leaflet map for optimal route (dummy implementation)
   output$route_map <- renderLeaflet({
     if (input$calculate_route > 0) {
@@ -98,4 +69,40 @@ shinyServer(function(input, output) {
       )
     }
   })
+  
+  # Placeholder for map generation
+  observeEvent(input$generate_map, {
+    output$travel_time_map <- renderLeaflet({
+      # Placeholder map, replace with actual Graph-Based Network Analysis
+      leaflet() %>%
+        addTiles() %>%
+        setView(lng = 103.8198, lat = 1.3521, zoom = 12)
+    })
+  })
+  
+  # Placeholder for commute time estimator result
+  observeEvent(input$estimate_commute, {
+    output$commute_time_result <- renderText({
+      paste("Commute from", input$home_location, "to", input$workplace, "will take approximately 45 minutes with 1 transfer.")
+    })
+  })
+  
+  # Placeholder for accessibility score result
+  observeEvent(input$get_score, {
+    output$accessibility_score_result <- renderText({
+      paste("The accessibility score for postal code", input$postal_code, "is 85 out of 100.")
+    })
+    
+    output$last_mile_info <- renderText({
+      paste("Nearest MRT Station: ABC MRT\nLast-mile connectivity: Walking distance of 5 minutes.")
+    })
+  })
+  
+  # Placeholder for recalculated MLR score
+  observeEvent(input$recalculate_score, {
+    output$accessibility_score_result <- renderText({
+      paste("Recalculated Accessibility Score: 90 out of 100.")
+    })
+  })
+  
 })

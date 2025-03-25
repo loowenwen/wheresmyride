@@ -1,22 +1,33 @@
 library(shiny)
-library(leaflet)
-library(plotly)
 library(shinythemes)
-library(bslib)
 
-# Define UI for the application
 shinyUI(
   fluidPage(
-    shinythemes::themeSelector(),
+    theme = shinytheme("journal"),  # apply journal theme
     
-    # Application title
+    # application title
     titlePanel(
-      h1("Singapore Public Transport Connectivity Analysis", 
-         style = "color: #2C3E50; font-weight: bold; text-align: center;")
+      div(
+        # main title
+        h1("Public Transport Accessibility Dashboard",
+           style = "color: #023047; font-weight: bold; text-align: center;
+           font-size: 40px; margin-bottom: 5px; font-family: 'Times New Roman', serif;"),
+        
+        # subtitle
+        h4("Helping Future Homeowners Make Data-Driven Location Choices", 
+           style = "color: #023047; text-align: center; font-weight: normal; 
+                font-size: 18px; margin-bottom: 20px;
+           font-family: 'Times New Roman', serif;"),
+        
+        # styling wrapper
+        style = "background-color: #8ecae6; padding: 20px; border-radius: 15px; 
+             box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);"
+      )
     ),
     
-    # Tabbed layout for multiple features
+    # tabbed layout for multiple features
     tabsetPanel(
+      
       # Tab 1: Location Search
       tabPanel(
         "Location Search",

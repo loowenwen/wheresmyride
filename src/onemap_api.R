@@ -55,7 +55,8 @@ if (status_code(response) == 200) {
 }
 
 
-# SEARCH
+# SEARCH: This API takes a text input which can be a building name, road name, bus stop number, or postal code; for example: "Revenue House" or "307987". 
+#It returns address information including both latitude, longitude, and x, y coordinates, based on the text input and sorts the results according to their estimated relevance.
 
 library(httr)
 library(jsonlite)
@@ -100,14 +101,14 @@ library(httr)
 base_url <- "https://www.onemap.gov.sg/api/public/routingsvc/route"
 
 # define parameters
-start = "1.29779464772932,103.780638335602" # in WGS84 latitude, longitude format
-end = "1.33100823526591,103.938066838998" # in WGS84 latitude, longitude format
+start = "1.393027,103.9013" # in WGS84 latitude, longitude format
+end = "1.370669,103.8824" # in WGS84 latitude, longitude format
 routeType = "pt" # route types available: walk, drive, pt, and cycle
 date = "03-24-2025" # date of the selected start point in MM-DD-YYYY
 time = "07:35:00" # time of the selected start point in [HH][MM][SS], using the 24-hour clock system
 mode = "TRANSIT"  # mode of public transport: TRANSIT, BUS, RAIL
 maxWalkDistance = 1000
-numItineraries = 1
+numItineraries = 
 
 # replace with your actual API token
 authToken <- token

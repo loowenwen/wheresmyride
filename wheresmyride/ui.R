@@ -1,7 +1,12 @@
 library(shiny)
+library(shinyjs)
+library(shinyWidgets)
+library(leaflet)
+
+source("helpers.R") 
 
 shinyUI(
-  fluidPage(
+  fluidPage(useShinyjs(),
     
     # application title
     titlePanel(
@@ -62,6 +67,7 @@ shinyUI(
       ),
       
       
+      
       # tab 2: accessibility analysis
       tabPanel("Accessibility Analysis",
                # add margin on top of sidebar panel and main panel
@@ -75,7 +81,7 @@ shinyUI(
                    h4("User Inputs",
                       style = "font-size: 18px; font-weight: bold;"),
                    # input postal code
-                   textInput("t2_postal_code", "Enter Postal Code:", ""),
+                   textInput("t2_postal_code", "Enter Postal Code:", placeholder = "e.g., 123456"),
                    # action button to calculate accessibiltiy score
                    actionButton("t2_accessibility_score", "Get Accessibility Score"),
                    
@@ -84,35 +90,60 @@ shinyUI(
                       margin-top: 20px;"),
                    # input maximum travel time to nearest mrt
                    sliderInput("t2_travel_time", 
-                               "Maximum Travel Time to Nearest MRT Station (minutes):", 
+                               "Max Travel Time to MRT (mins):", 
                                min = 0, max = 60, value = 15, step = 1),
                    # input maximum walking distance to nearest bus/mrt
-                   sliderInput("walking_dist", 
-                               "Maximum Walking Distance to Nearest Bus Stop/MRT Station (meters):", 
+                   sliderInput("t2_walking_distance", 
+                               "Max Walking Distance (m):", 
                                min = 0, max = 1000, value = 400, step = 10),
                    # input maximum waiting time for transport
-                   sliderInput("t2_freq", 
-                               "Maximum Waiting Time for Transport (minutes):", 
+                   sliderInput("t2_waiting_time", 
+                               "Max Waiting Time (mins):", 
                                min = 1, max = 60, value = 5, step = 1),
                    # input preferred mode of transport
                    selectInput("t2_transport_type", 
-                               "Preferred Mode of Transport:", 
+                               "Preferred Transport Mode:", 
                                choices = c("MRT", "Bus", "MRT & Bus")),
                    # action button to recalculate accessibility score
-                   actionButton("t2_recalculate", "Calculate New Accessibility Score")
+                   actionButton("t2_recalculate", "Recalculate with New Settings")
                  ),
                  
                  mainPanel(
                    div(id = "nestedTabs",
                        tabsetPanel(
                          tabPanel("Accessibility Score", 
-                                  h3("Location-Based Accessibility Score",
-                                     style = "font-size: 24px; font-weight: bold;
-                                     font-family: 'Times New Roman', serif; 
-                                     color: #023047;"),
+                                  div(class = "score-section", style = "font-family: 'Times New Roman', serif; 
+                                      color: #023047;",
+                                      h3("Overall Accessibility Score",
+                                         style = "font-size: 24px; font-weight: bold;"),
+                                      
+                                      # dynamic score display (changes color based on value)
+                                      uiOutput("t2_dynamic_score_display"),
+                                      
+                                      # score interpretation (e.g., "Excellent", "Poor")
+                                      uiOutput("t2_score_interpretation"),
+                                  ),
                                   
-                                  verbatimTextOutput("t2_accessibility_score"),
-                                  tableOutput("t2_key_location_times")),
+                                  br(),
+                                  
+                                  # metric boxes
+                                  fluidRow(
+                                    column(3, metric_box("🚆 MRT Score", "t2_mrt_score", color = "#ffb703")),
+                                    column(3, metric_box("🚌 Bus Score", "t2_bus_score", color = "#ffb703")),
+                                    column(3, metric_box("🚶 Walkability", "t2_walk_score", color = "#ffb703")),
+                                    column(3, metric_box("⏳ Congestion", "t2_congestion_score", color = "#ffb703"))
+                                  ),
+                                  
+                                  # travel time insights
+                                  fluidRow(
+                                    column(7, h3("Travel Time to Key Locations", style = "font-size: 24px; font-weight: bold;
+                                                 font-family: 'Times New Roman', serif;"), 
+                                           tableOutput("t2_key_location_times")),
+                                    column(5, h3("Nearest Bus Stops and MRT Stations", style = "font-size: 24px; font-weight: bold;
+                                                 font-family: 'Times New Roman', serif;"),
+                                           tableOutput("t2_nearest_bus_mrt"))
+                                  ),
+                         ),
                          
                          tabPanel("Travel Time Map", 
                                   h3("Isochrone Visualization",
@@ -125,6 +156,7 @@ shinyUI(
                  )
                )
       ),
+      
       
       
       # tab 3: comparing transport accessibility
@@ -162,6 +194,7 @@ shinyUI(
           )
         )
       ),
+    
     
     
     tags$head(

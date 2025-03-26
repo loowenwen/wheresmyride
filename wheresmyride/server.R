@@ -1,10 +1,10 @@
 library(shiny)
+library(shinyjs)
 library(leaflet)
-library(plotly)
-library(igraph)  # For graph-based network analysis
 
 # Define server logic
 shinyServer(function(input, output) {
+  useShinyjs()
   
   # Dummy data for demonstration
   regions <- data.frame(
@@ -105,17 +105,89 @@ shinyServer(function(input, output) {
     })
   })
   
-  # tab 2 outputs
-  output$t2_accessibility_score <- renderPrint({ "Accessibility Score Calculation Here" })
-  output$t2_key_location_times <- renderTable({ data.frame(Location = c("CBD", "Changi", "One-North"), Time = c("30 min", "45 min", "25 min")) })
   
-  output$t2_isochrone_map <- renderLeaflet({
-    leaflet() %>%
-      addTiles() %>%
-      addMarkers(lng = 103.851959, lat = 1.290270, popup = "Example Location")
+  
+  # tab 2 outputs
+  
+  ## dynamic score display
+  output$t2_dynamic_score_display <- renderUI({
+    req(accessibility_data$score)
+    score <- accessibility_data$score
+    color <- case_when(score >= 80 ~ "#2E8B57", score >= 50 ~ "#FFA500", TRUE ~ "#E63946")
+    div(style = sprintf("font-size: 50px; font-weight: bold; color: %s;", color), score)
   })
   
-  output$t2_commute_time <- renderPrint({ "Estimated Commute Time Calculation Here" })
-  output$t2_route_comparison <- renderTable({ data.frame(Route = c("MRT Only", "Mixed"), Time = c("35 min", "30 min"), Transfers = c(1, 2)) })
+  output$t2_score_interpretation <- renderUI({
+    req(accessibility_data$score)
+    score <- accessibility_data$score
+    text <- case_when(score >= 80 ~ "Excellent", score >= 50 ~ "Moderate", TRUE ~ "Poor")
+    div(style = "font-size: 18px;", text)
+  })
+  
+  ## key locations table
+  output$t2_key_location_times <- renderTable({
+    req(accessibility_data$key_locations)
+    accessibility_data$key_locations
+  })
+  
+  # 1. Initialize reactive values
+  accessibility_data <- reactiveValues(
+    score = NULL, mrt_score = NULL, bus_score = NULL,
+    walk_score = NULL, congestion_score = NULL, key_locations = NULL
+  )
+  
+  # 2. Calculate initial scores
+  observeEvent(input$t2_accessibility_score, {
+    req(input$t2_postal_code)
+    shinybusy::show_modal_spinner(text = "Calculating scores...")
+    
+    # Mock calculations (replace with real logic)
+    accessibility_data$score <- runif(1, 50, 100) %>% round(1)
+    accessibility_data$mrt_score <- runif(1, 0, 100) %>% round(1)
+    accessibility_data$bus_score <- runif(1, 0, 100) %>% round(1)
+    accessibility_data$walk_score <- runif(1, 0, 100) %>% round(1)
+    accessibility_data$congestion_score <- runif(1, 0, 100) %>% round(1)
+    accessibility_data$key_locations <- tibble(
+      Destination = c("CBD", "Airport", "Mall", "Park"),
+      Time = paste0(sample(5:60, 4), " mins"),
+      Transport = c("MRT", "Bus/MRT", "Walk", "Bus")
+    )
+    
+    shinyjs::show("t2_recalculate")
+    shinybusy::remove_modal_spinner()
+  })
+  
+  # 4. Metric boxes
+  output$mrt_score <- renderText(accessibility_data$mrt_score)
+  output$bus_score <- renderText(accessibility_data$bus_score)
+  output$walk_score <- renderText(accessibility_data$walk_score)
+  output$congestion_score <- renderText(accessibility_data$congestion_score)
+  
+
+  
+  # 7. Recalculation
+  observeEvent(input$t2_recalculate, {
+    req(input$t2_postal_code)
+    shinybusy::show_modal_spinner(text = "Recalculating...")
+    new_score <- accessibility_data$score * (
+      (input$t2_travel_time / 15) * 0.3 +
+        (input$walking_dist / 400) * 0.2 +
+        (input$t2_freq / 5) * 0.1
+    ) %>% round(1)
+    accessibility_data$score <- new_score
+    shinybusy::remove_modal_spinner()
+  })
+  
+  ## isochrone map
+  output$t2_isochrone_map <- renderLeaflet({
+    req(input$t2_postal_code)
+    lat <- 1.3521 + runif(1, -0.05, 0.05)
+    lng <- 103.8198 + runif(1, -0.05, 0.05)
+    leaflet() %>%
+      addTiles() %>%
+      setView(lng, lat, zoom = 14) %>%
+      addMarkers(lng, lat, popup = "Selected Location") %>%
+      addCircles(lng, lat, radius = input$walking_dist, color = "#219EBC", fillOpacity = 0.2)
+  })
   
 })

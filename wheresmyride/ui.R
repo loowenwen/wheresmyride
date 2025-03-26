@@ -61,63 +61,71 @@ shinyUI(
         )
       ),
       
+      
       # tab 2: accessibility analysis
-      tabPanel(
-        "Accessibility Analysis",
-        sidebarLayout(
-          sidebarPanel(
-            # Section for personalized travel time map
-            h4("Personalized Travel Time Map"),
-            textInput("location", "Enter Home Location (Postal Code / MRT Station):"),
-            numericInput("time_limit", "Select Time Limit (in minutes):", value = 30, min = 1, max = 60, step = 5),
-            selectInput("transport_mode", "Choose Transport Mode:", choices = c("MRT", "Bus", "Mixed-mode")),
-            actionButton("generate_map", "Generate Map"),
-            
-            hr(),
-            
-            # Section for commute time estimator
-            h4("Commute Time Estimator"),
-            textInput("home_location", "Home Location (BTO Estate):"),
-            textInput("workplace", "Workplace / Destination:"),
-            actionButton("estimate_commute", "Estimate Commute"),
-            
-            hr(),
-            
-            # Section for specific postal code accessibility scores
-            h4("Postal Code Accessibility Score"),
-            textInput("postal_code", "Enter Postal Code:"),
-            actionButton("get_score", "Get Accessibility Score"),
-            
-            hr(),
-            
-            # Section for dynamic MLR inputs
-            h4("Adjust MLR Inputs"),
-            sliderInput("mrt_weight", "MRT Importance (0-100):", min = 0, max = 100, value = 50),
-            sliderInput("bus_weight", "Bus Importance (0-100):", min = 0, max = 100, value = 50),
-            sliderInput("congestion_weight", "Peak-Hour Congestion Impact (0-100):", min = 0, max = 100, value = 50),
-            sliderInput("walking_time_weight", "Walking Time from Nearest Stop (0-100):", min = 0, max = 100, value = 50),
-            actionButton("recalculate_score", "Recalculate Accessibility Score")
-          ),
-          
-          mainPanel(
-            # Display map for travel time visualization
-            leafletOutput("travel_time_map"),
-            
-            hr(),
-            
-            # Display estimated commute time results
-            h4("Estimated Commute Time"),
-            verbatimTextOutput("commute_time_result"),
-            
-            hr(),
-            
-            # Display accessibility score and transport options
-            h4("Accessibility Score & Transport Options"),
-            verbatimTextOutput("accessibility_score_result"),
-            verbatimTextOutput("last_mile_info")
-          )
-        )
+      tabPanel("Accessibility Analysis",
+               # add margin on top of sidebar panel and main panel
+               style = "margin-top: 15px;", 
+               
+               sidebarLayout(
+                 sidebarPanel( 
+                   style = "background-color: #F8F9FA; 
+                   font-family: 'Times New Roman', serif; color: #023047;",
+                   
+                   h4("User Inputs",
+                      style = "font-size: 18px; font-weight: bold;"),
+                   # input postal code
+                   textInput("t2_postal_code", "Enter Postal Code:", ""),
+                   # action button to calculate accessibiltiy score
+                   actionButton("t2_accessibility_score", "Get Accessibility Score"),
+                   
+                   h4("Customize Accessibility Model",
+                      style = "font-size: 18px; font-weight: bold;
+                      margin-top: 20px;"),
+                   # input maximum travel time to nearest mrt
+                   sliderInput("t2_travel_time", 
+                               "Maximum Travel Time to Nearest MRT Station (minutes):", 
+                               min = 0, max = 60, value = 15, step = 1),
+                   # input maximum walking distance to nearest bus/mrt
+                   sliderInput("walking_dist", 
+                               "Maximum Walking Distance to Nearest Bus Stop/MRT Station (meters):", 
+                               min = 0, max = 1000, value = 400, step = 10),
+                   # input maximum waiting time for transport
+                   sliderInput("t2_freq", 
+                               "Maximum Waiting Time for Transport (minutes):", 
+                               min = 1, max = 60, value = 5, step = 1),
+                   # input preferred mode of transport
+                   selectInput("t2_transport_type", 
+                               "Preferred Mode of Transport:", 
+                               choices = c("MRT", "Bus", "MRT & Bus")),
+                   # action button to recalculate accessibility score
+                   actionButton("t2_recalculate", "Calculate New Accessibility Score")
+                 ),
+                 
+                 mainPanel(
+                   div(id = "nestedTabs",
+                       tabsetPanel(
+                         tabPanel("Accessibility Score", 
+                                  h3("Location-Based Accessibility Score",
+                                     style = "font-size: 24px; font-weight: bold;
+                                     font-family: 'Times New Roman', serif; 
+                                     color: #023047;"),
+                                  
+                                  verbatimTextOutput("t2_accessibility_score"),
+                                  tableOutput("t2_key_location_times")),
+                         
+                         tabPanel("Travel Time Map", 
+                                  h3("Isochrone Visualization",
+                                     style = "font-size: 24px; font-weight: bold;
+                                     font-family: 'Times New Roman', serif; 
+                                     color: #023047;"),
+                                  leafletOutput("t2_isochrone_map", height = 500))
+                       )
+                   )
+                 )
+               )
       ),
+      
       
       # tab 3: comparing transport accessibility
       tabPanel(
@@ -155,32 +163,48 @@ shinyUI(
         )
       ),
     
-    # add custom CSS to change tab labels
+    
     tags$head(
       tags$style(HTML("
+    /* apply custom styling to all tab labels */
     .nav-tabs > li > a {
-      color: #023047 !important;  
-      font-family: 'Times New Roman', serif !important;
-      font-size: 20px !important;
-      font-weight: bold !important;
+      color: #023047;  
+      font-family: 'Times New Roman', serif;
+      font-size: 20px;
+      font-weight: bold;
       text-align: center;
-      background-color: white !important; /* Light blue background */
-      border-radius: 5px !important; /* Rounded tabs */
     }
 
     /* change tab appearance when hovered */
     .nav-tabs > li > a:hover {
-      background-color: #8ecae6 !important;
-      color: white !important;
+      background-color: #8ecae6;
+      color: white;
     }
 
-    /* force active tab to retain color instead of turning grey */
+    /* force active tab to retain color */
     .nav-tabs > li.active > a,
     .nav-tabs > li.active > a:focus,
     .nav-tabs > li.active > a:hover {
-      background-color: #023047 !important; 
-      color: white !important;
-      border: none !important;
+      background-color: #023047 ; 
+      color: white;
+    }
+
+    /* custom styling for nested tab labels */
+    #nestedTabs .nav-tabs > li > a {
+      color: #fb8500;
+      font-size: 16px;
+    }
+
+    /* custom hover for nested tabs */
+    #nestedTabs .nav-tabs > li > a:hover {
+      background-color: #ffb703;
+      color: white;
+    }
+
+    /* custom active tab for nested tabs */
+    #nestedTabs .nav-tabs > li.active > a {
+      background-color: #fb8500;
+      color: white;
     }
   ")))
   )

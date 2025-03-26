@@ -105,4 +105,17 @@ shinyServer(function(input, output) {
     })
   })
   
+  # tab 2 outputs
+  output$t2_accessibility_score <- renderPrint({ "Accessibility Score Calculation Here" })
+  output$t2_key_location_times <- renderTable({ data.frame(Location = c("CBD", "Changi", "One-North"), Time = c("30 min", "45 min", "25 min")) })
+  
+  output$t2_isochrone_map <- renderLeaflet({
+    leaflet() %>%
+      addTiles() %>%
+      addMarkers(lng = 103.851959, lat = 1.290270, popup = "Example Location")
+  })
+  
+  output$t2_commute_time <- renderPrint({ "Estimated Commute Time Calculation Here" })
+  output$t2_route_comparison <- renderTable({ data.frame(Route = c("MRT Only", "Mixed"), Time = c("35 min", "30 min"), Transfers = c(1, 2)) })
+  
 })

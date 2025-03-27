@@ -207,6 +207,8 @@ if (status_code(response) == 200) {
   print(paste("Error:", status_code(response)))
 }
 
+data$SearchResults$geojson[2]
+
 
 ## NAMES OF PLANNING AREA
 library(httr)

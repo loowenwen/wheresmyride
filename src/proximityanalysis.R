@@ -39,7 +39,7 @@ if (status_code(response) == 200) {
 
 # PLANNING AREA
 
-##ALL PLANNING AREA POLYGONS API
+##ALL PLANNING AREA POLYGONS API - output is a data variable which is a large list, 2 elements: planning area names & geojson
 library(httr)
 
 # define the URL and headers
@@ -66,7 +66,9 @@ if (status_code(response) == 200) {
 
 
 
-##EXTRACT COORDINATES FUNCTION FOR PLANNING AREA POLYGON API 
+
+##EXTRACT COORDINATES FUNCTION FOR PLANNING AREA POLYGON API - takes in data$SearchResults$geojson[i] as input (each planning area's geojson string), output is a dataframe with coordiante points in lat and long columns
+#the geojson format varies between planning regions, need to handle each type differently when extracting coordinates to not run into dimension error
 extract_coordinates_general <- function(geojson_string) {
   geojson <- fromJSON(geojson_string)
   
@@ -211,8 +213,38 @@ extract_coordinates_33 <- function(geojson_string) {
   })
 }
 
+extract_coordinates_48 <- function(geojson_string) {
+  geojson <- fromJSON(geojson_string)
+  # Initialize an empty list to store coordinate dataframes
+  coords_list <- list()
+  
+  # Loop through each polygon in MultiPolygon
+  for (polygon in geojson$coordinates) {
+    for (ring in polygon) {
+      # Ensure the ring is a matrix before converting to a dataframe
+      if (is.matrix(ring) || is.data.frame(ring)) {
+        df <- as.data.frame(ring)
+        
+        # Ensure we always have exactly 2 columns
+        if (ncol(df) == 2) {
+          colnames(df) <- c("longitude", "latitude")
+          coords_list <- append(coords_list, list(df))
+        }
+      }
+    }
+  }
+  
+  # Combine all extracted coordinate dataframes into one
+  if (length(coords_list) > 0) {
+    coords_df <- do.call(rbind, coords_list)
+  } else {
+    coords_df <- data.frame(longitude = numeric(0), latitude = numeric(0))
+  }
+  
+  return(coords_df)
+}
 
-# Define function to count nearby bus stops/nearby mrt stops (used bus_stops_df label but can be used for mrt stops as well)
+# Define function to count nearby bus stops/nearby mrt stops (used bus_stops_df label but can be used for mrt stops as well), takes in coordinate dataframe of planning region, coordinates dataframe of bus stops/mrt stops 
 count_nearby_transit_stops <- function(planning_region_df, bus_stops_df, buffer_distance = 3000, crs_from = 4326, crs_to = 3414) {
   if (is.null(planning_region_df) || nrow(planning_region_df) == 0) return(0)  # Handle empty data
   
@@ -261,10 +293,17 @@ count_bus_stops_all_regions <- function(data, bus_stops_df) {
         message("Error processing region ", i, ": ", e$message)
         return(NULL)
       })
-    } else {
+    } else if (i == 48) {
+      planning_region_df <- tryCatch({
+        extract_coordinates_48(geojson_string)
+      }, error = function(e) {
+        message("Error processing region ", i, ": ", e$message)
+        return(NULL)
+      })
+      } else {
       # Use the default extract_coordinates_2 for all other cases
       planning_region_df <- tryCatch({
-        extract_coordinates_2(geojson_string)
+        extract_coordinates_general(geojson_string)
       }, error = function(e) {
         message("Error processing region ", i, ": ", e$message)
         return(NULL)
@@ -278,11 +317,9 @@ count_bus_stops_all_regions <- function(data, bus_stops_df) {
       message("Handling invalid coordinates for region ", region_name)
       
       # Option 1: Apply default coordinates (e.g., coordinates for the region's centroid or another default)
-      # For example, use a placeholder (e.g., 0,0) or specific known default coordinates for missing data
       default_coords <- data.frame(longitude = 0, latitude = 0)  # Use 0,0 or other default values
       planning_region_df <- default_coords  # Apply default coordinates to this region
-      
-      # Option 2: Alternatively, you can also apply other methods to handle invalid coordinates as needed
+    
     }
     
     # Now proceed with counting nearby bus stops
@@ -305,7 +342,16 @@ count_bus_stops_all_regions <- function(data, bus_stops_df) {
 }
 
 
-count_bus_stops_all_regions(data, bus_stops_final)
+##FINAL DATASETS (remember to load bus_stops_final and mrt_station_finalfixed datasets from datacleaning script)
+bus_stop_proximity_numbers <- count_bus_stops_all_regions(data, bus_stops_final) 
+#tidy up
+bus_stop_rankings <- bus_stop_proximity_numbers %>% group_by(Planning.Region) %>% arrange(desc(Nearby.Bus.Stops))
+
+mrt_stop_proximity_numbers <- count_bus_stops_all_regions(data, mrt_station_finalfixed) 
+
+mrt_stop_proximity_rankings <- mrt_stop_proximity_numbers %>% group_by(Planning.Region) %>% 
+  rename(Nearby.Mrt.Stops = Nearby.Bus.Stops) %>%
+  arrange(desc(Nearby.Mrt.Stops))
 
 
 
@@ -329,86 +375,6 @@ count_bus_stops_all_regions(data, bus_stops_final)
 
 
 
-
-
-##OLDER FUNCTIONS 
-
-#count_bus_stops_all_regions <- function(data, bus_stops_df) {
-  # Initialize empty list to store results
-  results <- list()
-  
-  for (i in 1:55) {
-    region_name <- data$SearchResults$pln_area_n[i]
-    geojson_string <- data$SearchResults$geojson[i]
-    
-    # Skip if no data available for this region
-    if (is.null(region_name) || is.null(geojson_string)) next
-    
-    planning_region_df <- tryCatch({
-      extract_coordinates_2(geojson_string)
-    }, error = function(e) {
-      message("Error processing region ", i, ": ", e$message)
-      return(NULL)
-    })
-    
-    if (is.null(planning_region_df) || nrow(planning_region_df) == 0) {
-      count_nearby <- 0
-    } else {
-      count_nearby <- tryCatch({
-        count_nearby_transit_stops(planning_region_df, bus_stops_df)
-      }, error = function(e) {
-        message("Error counting stops for region ", region_name, ": ", e$message)
-        return(NA)
-      })
-    }
-    
-    results[[i]] <- data.frame("Planning Region" = region_name, 
-                               "Nearby Bus Stops" = count_nearby, 
-                               stringsAsFactors = FALSE)
-  }
-  
-  # Combine all results and remove NULL entries
-  final_result <- do.call(rbind, results)
-  return(final_result)
-} #(OLD ONE that does not handle the special geojson cases)
-
-##FUNCTION TO COUNT NEARBY BUS STOPS/NEARBY MRT STATIONS (OLD)
-# Define the function to count nearby bus stops/mrt stations
-
-count_nearby_transit_stops <- function(planning_region_df, bus_stops_df, buffer_distance = 45000, crs_from = 4326, crs_to = 3414) {
-  
-  #ensures precision
-  planning_region_df$longitude <- as.numeric(format(planning_region_df$longitude, scientific = FALSE, digits = 15))
-  planning_region_df$latitude <- as.numeric(format(planning_region_df$latitude, scientific = FALSE, digits = 15))
-  
-  # Convert planning region to a spatial object (SF)
-  planning_region_sf <- st_as_sf(planning_region_df, coords = c("longitude", "latitude"), crs = crs_from)
-  
-  # Compute the centroid of the planning region (centre of planning region)
-  region_centroid <- st_centroid(st_union(planning_region_sf))
-  
-  # Create a buffer around the centroid of the planning region (radius of search)
-  region_buffer <- st_buffer(region_centroid, dist = buffer_distance)
-  
-  # Convert bus stops into spatial points (SF) and transform to correct crs if needed
-  bus_stops_sf <- st_as_sf(bus_stops_df, coords = c("longitude", "latitude"), crs = crs_from)
-  bus_stops_proj <- st_transform(bus_stops_sf, crs_to)
-  
-  # Transform planning region to the same CRS as bus stops
-  planning_region_sf_proj <- st_transform(planning_region_sf, crs_to)
-  
-  # Create the buffer on the same CRS as bus stops and planning region
-  region_buffer_proj <- st_transform(region_buffer, crs_to)
-  
-  # Find bus stops within the buffer
-  bus_stops_nearby <- st_within(bus_stops_proj, region_buffer_proj, sparse = FALSE)
-  
-  # Count the number of bus stops within the buffer
-  count_nearby <- sum(bus_stops_nearby)
-  
-  # Return the count
-  return(count_nearby)
-}
 
 
 

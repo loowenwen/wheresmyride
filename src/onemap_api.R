@@ -92,6 +92,90 @@ if (status_code(response) == 200) {
 }
 
 
+# ROUTING 2
+## PUBLIC TRANSPORT
+
+library(httr)
+library(jsonlite)
+
+# Function to extract itineraries and legs from API response
+extract_itineraries <- function(data) {
+  # Check if data contains itineraries
+  if (!"plan" %in% names(data) || !"itineraries" %in% names(data$plan)) {
+    stop("No itineraries found in the response")
+  }
+  
+  itineraries <- data$plan$itineraries
+  result <- list()
+  
+  # Iterate through each itinerary
+  for (i in seq_along(itineraries)) {
+    itinerary_name <- paste0("itinerary_", i)
+    legs_name <- paste0("legs_", i)
+    
+    # Extract the entire itinerary (excluding "Too sloped" and "Fare")
+    itinerary <- itineraries[[i]]
+    itinerary$fare <- NULL
+    itinerary$tooSloped <- NULL
+    
+    # Store the itinerary
+    result[[itinerary_name]] <- itinerary
+    
+    # Extract the legs separately
+    legs <- itinerary$legs
+    result[[legs_name]] <- legs
+  }
+  
+  return(result)
+}
+
+# define API endpoint
+base_url <- "https://www.onemap.gov.sg/api/public/routingsvc/route"
+
+# define parameters
+start = "1.35617,103.93748" # in WGS84 latitude, longitude format  (my house)
+end = "1.294178,103.7698" # in WGS84 latitude, longitude format (white sands)
+routeType = "pt" # route types available: walk, drive, pt, and cycle
+date = "03-24-2025" # date of the selected start point in MM-DD-YYYY
+time = "09:35:00" # time of the selected start point in [HH][MM][SS], using the 24-hour clock system
+mode = "TRANSIT"  # mode of public transport: TRANSIT, BUS, RAIL
+maxWalkDistance = 5000
+numItineraries = 3
+
+# replace with your actual API token
+authToken <- token
+
+# construct full URL with parameters
+request_url <- paste0(base_url, 
+                      "?start=", start, 
+                      "&end=", end,
+                      "&routeType=", routeType,
+                      "&date=", date,
+                      "&time=", time,
+                      "&mode=", mode,
+                      "&maxWalkDistance=", maxWalkDistance,
+                      "&numItineraries=", numItineraries)
+
+# make API request
+response <- GET(
+  url = request_url,
+  add_headers(Authorization = authToken)
+)
+
+# check response status
+if (status_code(response) == 200) {
+  # parse JSON response
+  result <- content(response, as = "text", encoding = "UTF-8")
+  data <- fromJSON(result)
+  # Extract itineraries and legs
+  itineraries_list <- extract_itineraries(data)
+  print(itineraries_list)  # Print the extracted data
+} else {
+  print(paste("Error:", status_code(response)))
+}
+
+
+
 # ROUTING
 ## PUBLIC TRANSPORT
 
@@ -108,7 +192,7 @@ date = "03-24-2025" # date of the selected start point in MM-DD-YYYY
 time = "07:35:00" # time of the selected start point in [HH][MM][SS], using the 24-hour clock system
 mode = "TRANSIT"  # mode of public transport: TRANSIT, BUS, RAIL
 maxWalkDistance = 1000
-numItineraries = 
+numItineraries = 3
 
 # replace with your actual API token
 authToken <- token

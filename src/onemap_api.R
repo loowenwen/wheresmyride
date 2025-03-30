@@ -192,7 +192,7 @@ date = "03-24-2025" # date of the selected start point in MM-DD-YYYY
 time = "07:35:00" # time of the selected start point in [HH][MM][SS], using the 24-hour clock system
 mode = "TRANSIT"  # mode of public transport: TRANSIT, BUS, RAIL
 maxWalkDistance = 1000
-numItineraries = 3
+numItineraries = 1
 
 # replace with your actual API token
 authToken <- token

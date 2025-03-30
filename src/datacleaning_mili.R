@@ -30,16 +30,6 @@ bus_stops_final <- bus_stops %>%
 
 
 
-#bus stop data
-json <- fromJSON("../data/BusStops/BusStops.json")
-bus_stops_df <- json$value
-
-#checking if any of the bus stops in this new dataset are not in our final cleaned bus stop dataset
-c(1012, 1013, 1019, 1029) %in% bus_stops_final$bus_stop_number
-
-
-
-
 
 ##MRT STATION LOCATIONS dataset
 mrt_station <- st_read("../data/TrainStation_Nov2024/RapidTransitSystemStation.shp")
@@ -72,7 +62,7 @@ mrt_station_finalfixed <- bind_rows(valid_mrt, fixed_invalid_mrt) %>%
 
 
 
-##BUS ROUTES
+##BUS ROUTES (no need)
 
 library(httr)
 library(jsonlite)

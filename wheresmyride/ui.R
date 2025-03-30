@@ -4,6 +4,8 @@ library(leaflet)
 library(dplyr)
 library(sf)
 library(scales)
+library(shinyjs)
+library(shiny)
 source("helpers.R") 
 
 shinyUI(

@@ -1,8 +1,9 @@
-library(shiny)
-library(shinyjs)
-library(shinyWidgets)
+library(httr)
+library(jsonlite)
 library(leaflet)
-
+library(dplyr)
+library(sf)
+library(scales)
 source("helpers.R") 
 
 shinyUI(

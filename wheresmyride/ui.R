@@ -73,7 +73,7 @@ shinyUI(
           # Third subtab: MRT Station Density Ranking Map
           tabPanel(
             "MRT Station Density",
-            leafletOutput("mrt_stop_proximity_ranking_map", height = 400)  # MRT station ranking map output
+            leafletOutput("mrt_stop_proximity_ranking_map", height = 600)  # MRT station ranking map output
           )
         )
       ),

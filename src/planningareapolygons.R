@@ -40,6 +40,7 @@ if (status_code(response) == 200) {
   print(paste("error:", status_code(response)))
 }
 
+
 # OneMap Planning Area Polygons API
 
 # define the URL and headers
@@ -64,23 +65,29 @@ if (status_code(response) == 200) {
 }
 
 
-
-# WEN WEN'S CODE #
+# Extract Planning Area Polygons 
 data <- data[["SearchResults"]]
 
-geojson_string <- data$geojson[1]
+# initialize an empty sf dataframe
+combined_sf <- st_sf(geometry = st_sfc(), crs = st_crs(spatial_polygon))
+combined_sf$pln_area_n <- character(0)
 
-spatial_polygon <- st_read(geojson_string, quiet = TRUE)
+# manually rerun for all 55 planning regions
+i <- 55
 
-print(spatial_polygon)
-
-print(st_crs(spatial_polygon))
-
+spatial_polygon <- st_read(data$geojson[i], quiet = TRUE)
+spatial_polygon$pln_area_n <- data$pln_area_n[i]
 plot(spatial_polygon$geometry)
 
-spatial_polygon$pln_area_n <- data$pln_area_n[1]
-names(spatial_polygon)
+# append to the combined dataframe
+combined_sf <- rbind(combined_sf, spatial_polygon)
 
-file_name <- paste0(data$pln_area_n[1], ".geojson")
+# save separately
+file_name <- paste0(data$pln_area_n[i], ".geojson")
 full_path <- file.path("data/PlanningAreaPolygons", file_name)
 st_write(spatial_polygon, full_path)
+
+# save combined dataframe
+file_name <-"ALL PLANNING AREAS.geojson"
+full_path <- file.path("data/PlanningAreaPolygons", file_name)
+st_write(combined_sf, full_path)

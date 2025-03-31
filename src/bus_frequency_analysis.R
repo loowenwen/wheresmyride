@@ -2,6 +2,7 @@ library(httr)
 library(jsonlite)
 library(dplyr)
 library(purrr)
+library(tidyverse)
 
 BusFrequencyAnalyzer <- setRefClass(
   "BusFrequencyAnalyzer",
@@ -47,101 +48,58 @@ BusFrequencyAnalyzer <- setRefClass(
         AM_Peak = .self$parse_frequency(service$AM_Peak_Freq),
         AM_Offpeak = .self$parse_frequency(service$AM_Offpeak_Freq),
         PM_Peak = .self$parse_frequency(service$PM_Peak_Freq),
-        PM_Offpeak = .self$parse_frequency(service$PM_Offpeak_Freq)
+        PM_Offpeak = .self$parse_frequency(service$PM_Offpeak_Freq),
+        ServiceNo = service_no
       )
     },
     
-    compare_housing_options = function(housing_options) {
-      results <- list()
+    get_bus_route_details = function(service_no, direction = 1) {
+      url <- paste0(.self$base_url, "BusRoutes")
+      all_records <- list()
+      offset <- 0
       
-      for (option in housing_options) {
-        option_result <- list(name = option$name, buses = list())
+      repeat {
+        response <- GET(url,
+                        add_headers(AccountKey = .self$api_key),
+                        query = list(
+                          "$filter" = paste0("ServiceNo eq '", service_no, "' and Direction eq ", direction),
+                          "$skip" = offset
+                        ))
         
-        for (bus in option$buses) {
-          freq <- .self$get_service_frequency(bus$no)
-          
-          if (!is.null(freq)) {
-            option_result$buses[[length(option_result$buses) + 1]] <- list(
-              service_no = bus$no,
-              stop_code = bus$stop_code,
-              frequencies = freq
-            )
-          }
-        }
+        content <- content(response, "text", encoding = "UTF-8")
+        data <- fromJSON(content)$value
         
-        results[[length(results) + 1]] <- option_result
+        if (length(data) == 0) break
+        
+        all_records <- append(all_records, list(data))
+        offset <- offset + 500
       }
       
-      return(results)
+      if (length(all_records) == 0) return(NULL)
+      bind_rows(all_records)
     },
     
-    print_comparison = function(comparison) {
-      for (option in comparison) {
-        cat("\n=== Housing Option:", option$name, "===\n")
-        
-        for (bus in option$buses) {
-          cat("\nBus", bus$service_no, "at stop", bus$stop_code, "\n")
-          
-          if (!is.na(bus$frequencies$AM_Peak$avg)) {
-            cat("AM Peak (6:30-8:30):", bus$frequencies$AM_Peak$avg, "min avg\n")
-            cat("    (Range:", bus$frequencies$AM_Peak$min, "-", bus$frequencies$AM_Peak$max, "min)\n")
-          }
-          
-          if (!is.na(bus$frequencies$AM_Offpeak$avg)) {
-            cat("AM Offpeak (8:31-16:59):", bus$frequencies$AM_Offpeak$avg, "min avg\n")
-            cat("    (Range:", bus$frequencies$AM_Offpeak$min, "-", bus$frequencies$AM_Offpeak$max, "min)\n")
-          }
-          
-          if (!is.na(bus$frequencies$PM_Peak$avg)) {
-            cat("PM Peak (17:00-19:00):", bus$frequencies$PM_Peak$avg, "min avg\n")
-            cat("    (Range:", bus$frequencies$PM_Peak$min, "-", bus$frequencies$PM_Peak$max, "min)\n")
-          }
-          
-          if (!is.na(bus$frequencies$PM_Offpeak$avg)) {
-            cat("PM Offpeak (after 19:00):", bus$frequencies$PM_Offpeak$avg, "min avg\n")
-            cat("    (Range:", bus$frequencies$PM_Offpeak$min, "-", bus$frequencies$PM_Offpeak$max, "min)\n")
-          }
-          
-          if (!is.na(bus$frequencies$AM_Peak$avg)) {
-            cat("Buses/hour during AM Peak:", round(60/bus$frequencies$AM_Peak$avg, 1), "\n")
-          }
+    verify_bus_at_stop = function(bus_no, stop_code) {
+      for (dir in 1:2) {
+        route <- .self$get_bus_route_details(bus_no, dir)
+        if (!is.null(route) && stop_code %in% route$BusStopCode) {
+          return(list(
+            found = TRUE,
+            direction = dir,
+            sequence = which(route$BusStopCode == stop_code)[1],
+            route_data = route
+          ))
         }
       }
-    },
-    
-    get_all_bus_stops = function() {
-      url <- paste0(.self$base_url, "BusStops")
-      response <- GET(url, add_headers(AccountKey = .self$api_key))
-      content <- content(response, "text", encoding = "UTF-8")
-      fromJSON(content)$value
-    },
-    
-    calculate_combined_frequency = function(bus_numbers) {
-      # Get frequency data for all specified buses
-      freq_data <- lapply(bus_numbers, function(no) .self$get_service_frequency(no))
-      freq_data <- freq_data[!sapply(freq_data, is.null)]  # Remove NULLs
-      
-      if (length(freq_data) == 0) return(NULL)
-      
-      # Calculate combined metrics for each time period
-      combined <- list(
-        AM_Peak = .self$combine_period(freq_data, "AM_Peak"),
-        AM_Offpeak = .self$combine_period(freq_data, "AM_Offpeak"),
-        PM_Peak = .self$combine_period(freq_data, "PM_Peak"),
-        PM_Offpeak = .self$combine_period(freq_data, "PM_Offpeak")
-      )
-      
-      return(combined)
+      return(list(found = FALSE))
     },
     
     combine_period = function(freq_data, period) {
-      # Extract all valid frequencies for this period
       periods <- lapply(freq_data, function(x) x[[period]])
       valid <- periods[!sapply(periods, function(x) any(is.na(x$avg)))]
       
       if (length(valid) == 0) return(list(avg = NA, min = NA, max = NA))
       
-      # Convert to buses per minute (frequency)
       freqs <- lapply(valid, function(x) {
         list(
           avg = 1/x$avg,
@@ -150,12 +108,10 @@ BusFrequencyAnalyzer <- setRefClass(
         )
       })
       
-      # Sum the frequencies
       combined_avg <- sum(sapply(freqs, function(x) x$avg))
       combined_min <- sum(sapply(freqs, function(x) x$min))
       combined_max <- sum(sapply(freqs, function(x) x$max))
       
-      # Convert back to wait times
       list(
         avg = 1/combined_avg,
         min = 1/combined_max,
@@ -164,8 +120,50 @@ BusFrequencyAnalyzer <- setRefClass(
       )
     },
     
-    print_combined_frequency = function(combined, bus_numbers) {
-      cat("\n=== Combined Frequency Analysis for Buses:", paste(bus_numbers, collapse = ", "), "===\n")
+    calculate_combined_frequency_at_stop = function(bus_numbers, stop_code) {
+      valid_services <- list()
+      validation_results <- list()
+      
+      for (bus_no in bus_numbers) {
+        verification <- .self$verify_bus_at_stop(bus_no, stop_code)
+        validation_results[[bus_no]] <- verification
+        
+        if (verification$found) {
+          freq_data <- .self$get_service_frequency(bus_no)
+          if (!is.null(freq_data)) {
+            freq_data$direction <- verification$direction
+            valid_services[[length(valid_services) + 1]] <- freq_data
+          }
+        }
+      }
+      
+      if (length(valid_services) == 0) {
+        cat("\nDiagnostics for stop", stop_code, ":\n")
+        for (bus in names(validation_results)) {
+          vr <- validation_results[[bus]]
+          cat(bus, ":", ifelse(vr$found, 
+                               paste("Found in direction", vr$direction),
+                               "NOT found"), "\n")
+        }
+        return(NULL)
+      }
+      
+      combined <- list(
+        AM_Peak = .self$combine_period(valid_services, "AM_Peak"),
+        AM_Offpeak = .self$combine_period(valid_services, "AM_Offpeak"),
+        PM_Peak = .self$combine_period(valid_services, "PM_Peak"),
+        PM_Offpeak = .self$combine_period(valid_services, "PM_Offpeak"),
+        valid_buses = bus_numbers,
+        stop_code = stop_code,
+        directions = sapply(valid_services, function(x) x$direction)
+      )
+      
+      return(combined)
+    },
+    
+    print_stop_frequency = function(combined) {
+      cat("\n=== Combined Frequency at Stop:", combined$stop_code, "===\n")
+      cat("Buses:", paste(combined$valid_buses, collapse = ", "), "\n")
       
       periods <- list(
         AM_Peak = "AM Peak (6:30-8:30)",
@@ -177,37 +175,58 @@ BusFrequencyAnalyzer <- setRefClass(
       for (period in names(periods)) {
         pdata <- combined[[period]]
         if (!is.na(pdata$avg)) {
-          cat("\n", periods[[period]], ":\n")
-          cat("Average wait time:", round(pdata$avg, 1), "minutes\n")
-          cat("Wait time range:", round(pdata$min, 1), "-", round(pdata$max, 1), "minutes\n")
-          cat("Effective buses per hour:", round(pdata$buses_per_hour, 1), "\n")
+          cat(periods[[period]], ":\n")
+          cat("  Average wait time:", round(pdata$avg, 1), "minutes\n")
+          cat("  Wait time range:", round(pdata$min, 1), "-", round(pdata$max, 1), "minutes\n")
+          cat("  Effective buses/hour:", round(pdata$buses_per_hour, 1), "\n")
           
-          # Calculate probability of bus arriving within X minutes
           lambda <- 1/pdata$avg
           wait_times <- c(2, 5, 10)
           probs <- 1 - exp(-lambda * wait_times)
-          cat("Probability of bus arriving within:\n")
+          cat("  Probability of bus arriving within:\n")
           for (i in seq_along(wait_times)) {
-            cat(sprintf("  %d minutes: %.1f%%\n", wait_times[i], probs[i]*100))
+            cat(sprintf("    %d minutes: %.1f%%\n", wait_times[i], probs[i]*100))
           }
+          cat("\n")
         }
       }
+    },
+    
+    get_all_bus_stops = function() {
+      url <- paste0(.self$base_url, "BusStops")
+      response <- GET(url, add_headers(AccountKey = .self$api_key))
+      content <- content(response, "text", encoding = "UTF-8")
+      fromJSON(content)$value
     }
   )
 )
 
-# Example usage
+#usage
 analyzer <- BusFrequencyAnalyzer$new(api_key = "o6OuJxI3Re+qYgFQzb+4+w==")
 
-# Example: Combined frequency for buses 95 and 46
-combined <- analyzer$calculate_combined_frequency(c("291", "46"))
+#First test case
+test_stop <- "01419"  # Orchard Station
+test_buses <- c("36", "77")
+combined <- analyzer$calculate_combined_frequency_at_stop(test_buses, test_stop)
+if (!is.null(combined)) analyzer$print_stop_frequency(combined)
+
+#Second test case
+your_stop <- "75131" #my house bus stop
+your_buses <- c("291", "69") #know both these buses go through this stop and go to tamp int
+combined <- analyzer$calculate_combined_frequency_at_stop(your_buses, your_stop)
 if (!is.null(combined)) {
-  analyzer$print_combined_frequency(combined, c("291", "46"))
+  analyzer$print_stop_frequency(combined)
 } else {
-  cat("No valid bus services found")
+  cat("\nNo valid combinations found. Checking routes...\n")
+  for (bus in your_buses) {
+    cat("\nRoute check for bus", bus, ":\n")
+    print(analyzer$verify_bus_at_stop(bus, your_stop))
+  }
 }
 
-# Example housing options (replace with actual stop codes)
+
+
+# Example 2: Housing options comparison
 housing_options <- list(
   list(
     name = "BTO1 - Punggol", 
@@ -223,8 +242,20 @@ housing_options <- list(
   )
 )
 
-# Run the comparison
 comparison_results <- analyzer$compare_housing_options(housing_options)
-
-# Print the results
 analyzer$print_comparison(comparison_results)
+
+
+
+stop_info <- analyzer$get_all_bus_stops() %>% 
+  filter(BusStopCode == "75131")
+
+if (nrow(stop_info) == 0) {
+  cat("Stop 75131 doesn't exist in the database\n")
+} else {
+  cat("Stop 75131 exists. Description:", stop_info$Description, "\n")
+}
+
+
+
+

@@ -1,10 +1,10 @@
 library(igraph)
 library(dplyr)
-
-# AUTHENTICATION
-
 library(httr)
 library(jsonlite)
+library(igraph)
+
+# AUTHENTICATION
 
 # define API endpoint for authentication
 auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
@@ -41,95 +41,94 @@ if (status_code(response) == 200) {
 }
 
 
-#API that will help me to dynamically draw the edges:
-# ROUTING 2
-## PUBLIC TRANSPORT
 
-library(httr)
-library(jsonlite)
+#Setting up the dataframe which will help to create the nodes
+mrt_nodes <- mrt_station_codes_locations %>%
+  select(
+    id = stn_code,
+    name = station_name,
+    longitude,
+    latitude,
+    mrt_line = mrt_line_english
+  ) %>%
+  mutate(
+    node_type = "train")
 
-# Function to extract itineraries and legs from API response
-extract_itineraries <- function(data) {
-  # Check if data contains itineraries
-  if (!"plan" %in% names(data) || !"itineraries" %in% names(data$plan)) {
-    stop("No itineraries found in the response")
+
+bus_nodes <- bus_stops_final %>%
+  select(
+    id = bus_stop_number,
+    name = bus_stop_name,
+    longitude,
+    latitude
+  ) %>%
+  mutate(
+    node_type = "bus",
+    id = as.character(id))
+
+transport_nodes <- bind_rows(
+  mrt_nodes,
+  bus_nodes
+) 
+
+transport_nodes <- transport_nodes %>%
+  distinct(id, .keep_all = TRUE)
+
+
+# Function to get route data from API call
+get_route_data <- function(start, end, routeType = "pt", date, time, mode = "TRANSIT", maxWalkDistance, numItineraries = 3, authToken) {
+  # Define API endpoint
+  base_url <- "https://www.onemap.gov.sg/api/public/routingsvc/route"
+  
+  # Construct full URL with parameters
+  request_url <- paste0(
+    base_url,
+    "?start=", start,
+    "&end=", end,
+    "&routeType=", routeType,
+    "&date=", date,
+    "&time=", time,
+    "&mode=", mode,
+    "&maxWalkDistance=", maxWalkDistance,
+    "&numItineraries=", numItineraries
+  )
+  
+  # Make API request
+  response <- GET(
+    url = request_url,
+    add_headers(Authorization = authToken)
+  )
+  
+  # Check response status
+  if (status_code(response) == 200) {
+    # Parse JSON response
+    result <- content(response, as = "text", encoding = "UTF-8")
+    data <- fromJSON(result)
+    
+    # Extract and print itineraries
+    if ("plan" %in% names(data) && "itineraries" %in% names(data$plan)) {
+      itineraries <- data$plan$itineraries
+      print(itineraries)  # Print the extracted itineraries
+      return(itineraries)
+    } else {
+      print("Itineraries not found in the response.")
+      return(NULL)
+    }
+  } else {
+    print(paste("Error:", status_code(response)))
+    return(NULL)
   }
-  
-  itineraries <- data$plan$itineraries
-  result <- list()
-  
-  # Iterate through each itinerary
-  for (i in seq_along(itineraries)) {
-    itinerary_name <- paste0("itinerary_", i)
-    legs_name <- paste0("legs_", i)
-    
-    # Extract the entire itinerary (excluding "Too sloped" and "Fare")
-    itinerary <- itineraries[[i]]
-    itinerary$fare <- NULL
-    itinerary$tooSloped <- NULL
-    
-    # Store the itinerary
-    result[[itinerary_name]] <- itinerary
-    
-    # Extract the legs separately
-    legs <- itinerary$legs
-    result[[legs_name]] <- legs
-  }
-  
-  return(result)
 }
 
-# define API endpoint
-base_url <- "https://www.onemap.gov.sg/api/public/routingsvc/route"
-
-# define parameters
-start = "1.355948,103.9372" # in WGS84 latitude, longitude format  (my house bus stop)
-end = "1.294178,103.7698" # in WGS84 latitude, longitude format (kent ridge terminal)
-routeType = "pt" # route types available: walk, drive, pt, and cycle
-date = "03-29-2025" # date of the selected start point in MM-DD-YYYY
-time = "21:50:00" # time of the selected start point in [HH][MM][SS], using the 24-hour clock system
-mode = "TRANSIT"  # mode of public transport: TRANSIT, BUS, RAIL
-maxWalkDistance = 5000
-numItineraries = 3
-
-# replace with your actual API token
-authToken <- token
-
-# construct full URL with parameters
-request_url <- paste0(base_url, 
-                      "?start=", start, 
-                      "&end=", end,
-                      "&routeType=", routeType,
-                      "&date=", date,
-                      "&time=", time,
-                      "&mode=", mode,
-                      "&maxWalkDistance=", maxWalkDistance,
-                      "&numItineraries=", numItineraries)
-
-# make API request
-response <- GET(
-  url = request_url,
-  add_headers(Authorization = authToken)
+#usage: input any start or end coordinates
+route <- get_route_data(
+  start = "1.355948,103.9372", #my house
+  end = "1.294178,103.7698", #kent ridge terminal
+  date = "03-24-2025",
+  time = "07:35:00",
+  maxWalkDistance = 1000,
+  authToken = token
 )
-
-# check response status
-if (status_code(response) == 200) {
-  # parse JSON response
-  result <- content(response, as = "text", encoding = "UTF-8")
-  data <- fromJSON(result)
-  # Extract itineraries and legs
-  itineraries_list <- extract_itineraries(data)
-  print(itineraries_list)  # Print the extracted data
-} else {
-  print(paste("Error:", status_code(response)))
-}
-
-
-
-
-#Dynamically drawing routes and edges
-
-api_response <- itineraries_list$itinerary_14  #list of 2 = 2 itineraries
 
 
 ##generate all route sequences function - since our api can generate up to 3 itineraries 
@@ -203,14 +202,12 @@ generate_all_route_sequences <- function(api_response) {
     
     # Store in list with route number
     all_sequences[[paste0("route_", route_num)]] <- route_sequence
+    
+    
   }
   
   return(all_sequences)
 }
-
-
-route_sequences <- generate_all_route_sequences(api_response)
-
 
 ##need to fix the route sequences/check if its correct
 fix_mrt_sequences <- function(route_sequences) {
@@ -282,46 +279,9 @@ fix_mrt_sequences <- function(route_sequences) {
 }
 
 # Fixed routes
-route_sequences <- fix_mrt_sequences(route_sequences)
+route_sequences <- fix_mrt_sequences(generate_all_route_sequences(route$legs))
 
 
-
-
-#setting up the dataframe which will help to create the nodes
-mrt_nodes <- mrt_station_codes_locations %>%
-  select(
-    id = stn_code,
-    name = station_name,
-    longitude,
-    latitude,
-    mrt_line = mrt_line_english
-  ) %>%
-  mutate(
-    node_type = "train")
-
-
-bus_nodes <- bus_stops_final %>%
-  select(
-    id = bus_stop_number,
-    name = bus_stop_name,
-    longitude,
-    latitude
-  ) %>%
-  mutate(
-    node_type = "bus",
-    id = as.character(id))
-
-transport_nodes <- bind_rows(
-  mrt_nodes,
-  bus_nodes
-) 
-  
-transport_nodes <- transport_nodes %>%
-  distinct(id, .keep_all = TRUE)
-
-
-# Combine with existing dataset
-transport_nodes <- rbind(transport_nodes, placeholder_nodes)
 
 
 ##CREATE NODES
@@ -366,7 +326,7 @@ get_route_nodes <- function(route_sequence, transport_nodes) {
 }
 
 
-##CREATE EDGES: for now i added dummy time weights and transfer penalties
+##CREATE EDGES: for now i added dummy time weights and transfer penalties because I haven't figured out where time weights and transfer penalities come from the api_response
 create_route_edges <- function(route_nodes) {
   # Ensure route_nodes is ordered correctly
   route_nodes <- route_nodes %>% arrange(route_position)
@@ -389,7 +349,7 @@ create_route_edges <- function(route_nodes) {
         TRUE ~ "mode_transfer"
       ),
       
-      # Dummy time weights (in minutes)
+      # Dummy time weights (in minutes) - ##to do later: come up with time_weight by calculating distance and estimating time?
       time_weight = case_when(
         segment_type == "bus_route" ~ 2.5 * runif(n(), 0.7, 1.3),
         segment_type == "mrt_line" ~ 1.8 * runif(n(), 0.7, 1.3),
@@ -403,7 +363,7 @@ create_route_edges <- function(route_nodes) {
         TRUE ~ 0
       ),
       
-      # Composite weight
+      # Composite weight 
       composite_weight = time_weight + transfer_penalty,
       
       # Sequence number
@@ -421,7 +381,6 @@ create_route_edges <- function(route_nodes) {
   return(route_edges)
 }
 
-route_edges <- create_route_edges(route_nodes)
 
 
 # Function to process all routes and create combined graph
@@ -477,18 +436,14 @@ create_combined_transport_graph <- function(route_sequences, transport_nodes) {
 
 # Usage:
 transport_graph <- create_combined_transport_graph(route_sequences, transport_nodes)
-
-# Access the components:
-combined_graph <- transport_graph$graph
-all_nodes <- transport_graph$nodes
-all_edges <- transport_graph$edges
+route_edges <- transport_graph$edges
 
 
 
-### Function to calculate PTA score for a route
+### Function to calculate PTA score for a route 
 calculate_pta_score <- function(route_graph, route_edges) {
   # Calculate travel time components
-  total_travel_time <- sum(route_edges$time_weight)
+  total_travel_time <- 
   
   # Calculate transfer penalty
   transfer_penalty <- sum(route_edges$transfer_penalty)
@@ -525,7 +480,6 @@ calculate_frequency_score <- function(route_edges) {
     pull(freq_score) %>%
     mean()
 }
-
 
 
 

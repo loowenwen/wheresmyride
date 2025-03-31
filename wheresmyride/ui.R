@@ -1,8 +1,11 @@
-library(shiny)
-library(shinyjs)
-library(shinyWidgets)
+library(httr)
+library(jsonlite)
 library(leaflet)
-
+library(dplyr)
+library(sf)
+library(scales)
+library(shinyjs)
+library(shiny)
 source("helpers.R") 
 
 shinyUI(
@@ -34,38 +37,49 @@ shinyUI(
       # tab 1: overview
       tabPanel(
         "Overview",
-        sidebarLayout(
-          sidebarPanel(
-            style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
-            
-            # Input: Text input for postal code
-            textInput("postal_code", "Enter Postal Code", 
-                      value = "", placeholder = "e.g., 123456"),
-            
-            # Input: Slider to select search radius (in meters)
-            sliderInput("search_radius", "Search Radius (meters)", 
-                        min = 100, max = 2000, value = 500, step = 100),
-            
-            # Input: Button to search
-            actionButton("search_location", "Search", 
-                         class = "btn-primary", style = "width: 100%;"),
-            
-            # Output: Summary statistics
-            h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
-            verbatimTextOutput("location_summary")
+        tabsetPanel(
+          # First subtab: Overview (current code)
+          tabPanel(
+            "Overview",
+            sidebarLayout(
+              sidebarPanel(
+                style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
+                
+                # Input: Text input for postal code
+                textInput("postal_code", "Enter Postal Code", 
+                          value = "", placeholder = "e.g., 123456"),
+                
+                # Input: Slider to select search radius (in meters)
+                sliderInput("search_radius", "Search Radius (meters)", 
+                            min = 100, max = 2000, value = 500, step = 100),
+                
+                # Input: Button to search
+                actionButton("search_location", "Search", 
+                             class = "btn-primary", style = "width: 100%;"),
+                
+                # Output: Summary statistics
+                h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
+                verbatimTextOutput("location_summary")
+              ),
+              mainPanel(
+                leafletOutput("location_map", height = 600)  # Show the map here
+              )
+            )
           ),
           
-          # Main panel for displaying outputs
-          mainPanel(
-            style = "background-color: #FFFFFF; padding: 20px; border-radius: 10px;",
-            
-            # Output: Leaflet map
-            h4("Nearby Bus Stops and MRT Stations", style = "color: #2C3E50;"),
-            leafletOutput("location_map", height = "500px")
+          # Second subtab: Bus Stop Density Ranking Map
+          tabPanel(
+            "Bus Stop Density",
+            leafletOutput("bus_stop_ranking_map", height = 600)  # Bus stop ranking map output
+          ),
+          
+          # Third subtab: MRT Station Density Ranking Map
+          tabPanel(
+            "MRT Station Density",
+            leafletOutput("mrt_stop_proximity_ranking_map", height = 600)  # MRT station ranking map output
           )
         )
       ),
-      
       
       
       # tab 2: accessibility analysis

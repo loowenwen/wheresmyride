@@ -29,83 +29,79 @@ shinyServer(function(input, output) {
     })
   })
   
-  # Reactive expression to calculate accessibility score
-  accessibility_score <- reactive({
-    region_data <- regions[regions$Region == input$region, ]
-    bus_score <- if ("Bus" %in% input$transport_mode) region_data$Bus_Stops / 100 else 0
-    mrt_score <- if ("MRT" %in% input$transport_mode) region_data$MRT_Stations / 10 else 0
-    total_score <- bus_score + mrt_score
-    return(total_score)
-  })
-  
-  # Reactive expression to calculate travel time (dummy implementation)
-  travel_time <- reactive({
-    region_data <- regions[regions$Region == input$region, ]
-    base_time <- if (input$time %in% 7:9 | input$time %in% 17:19) 30 else 20  # Peak vs off-peak
-    adjusted_time <- base_time + (100 - region_data$Accessibility_Score) / 10
-    return(adjusted_time)
-  })
-  
-  # Output: Leaflet map for optimal route (dummy implementation)
-  output$route_map <- renderLeaflet({
-    if (input$calculate_route > 0) {
-      leaflet() %>%
-        addTiles() %>%
-        setView(lng = 103.8198, lat = 1.3521, zoom = 13) %>%
-        addMarkers(lng = c(103.8198, 103.8500), lat = c(1.3521, 1.3000), 
-                   popup = c("Home", "Workplace")) %>%
-        addPolylines(lng = c(103.8198, 103.8300, 103.8500), 
-                     lat = c(1.3521, 1.3200, 1.3000), color = "#18BC9C")
-    }
-  })
-  
-  # Output: Table of route steps (dummy implementation)
-  output$route_steps_table <- renderTable({
-    if (input$calculate_route > 0) {
-      data.frame(
-        Step = c("Start at Home", "Take Bus 123", "Transfer to MRT Line A", "Arrive at Destination"),
-        Time = c("0 min", "10 min", "20 min", "30 min")
-      )
-    }
-  })
-  
-  # Placeholder for map generation
-  observeEvent(input$generate_map, {
-    output$travel_time_map <- renderLeaflet({
-      # Placeholder map, replace with actual Graph-Based Network Analysis
-      leaflet() %>%
-        addTiles() %>%
-        setView(lng = 103.8198, lat = 1.3521, zoom = 12)
-    })
-  })
-  
-  # Placeholder for commute time estimator result
-  observeEvent(input$estimate_commute, {
-    output$commute_time_result <- renderText({
-      paste("Commute from", input$home_location, "to", input$workplace, "will take approximately 45 minutes with 1 transfer.")
-    })
-  })
-  
-  # Placeholder for accessibility score result
-  observeEvent(input$get_score, {
-    output$accessibility_score_result <- renderText({
-      paste("The accessibility score for postal code", input$postal_code, "is 85 out of 100.")
-    })
+  # Bus Stop Density Ranking Map (for the second subtab)
+  output$bus_stop_ranking_map <- renderLeaflet({
+    # Apply color scale to 'Nearby.Bus.Stops'
+    bus_stop_rankings <- bus_stop_rankings %>%
+      mutate(color = col_numeric(
+        palette = c("white", "darkblue"),  # Gradient from white (lowest) to dark blue (highest)
+        domain = range(bus_stop_rankings$Nearby.Bus.Stops)  # Normalize based on the 'Nearby.Bus.Stops' column
+      )(Nearby.Bus.Stops))
     
-    output$last_mile_info <- renderText({
-      paste("Nearest MRT Station: ABC MRT\nLast-mile connectivity: Walking distance of 5 minutes.")
-    })
+    # Create Leaflet map and render polygons with bus stop rankings
+    bus_stop_ranking_map <- leaflet() %>%
+      addTiles() %>%
+      setView(lng = 103.8198, lat = 1.3521, zoom = 12)  # Centering on Singapore
+    
+    for (i in 1:nrow(bus_stop_rankings)) {
+      region_name <- bus_stop_rankings$Planning.Region[i]
+      region_index <- which(data$SearchResults$pln_area_n == region_name)
+      geojson_string <- data$SearchResults$geojson[region_index]
+      
+      geojson_data <- st_read(geojson_string)
+      
+      bus_stop_ranking_map <- bus_stop_ranking_map %>%
+        addPolygons(
+          data = geojson_data,
+          color = bus_stop_rankings$color[i],
+          weight = 2,
+          opacity = 1,
+          fillColor = bus_stop_rankings$color[i],
+          fillOpacity = 0.9,
+          popup = paste("<strong>Region:</strong>", region_name, "<br>", 
+                        "<strong>Nearby Bus Stops:</strong>", bus_stop_rankings$Nearby.Bus.Stops[i])
+        )
+    }
+    
+    bus_stop_ranking_map
   })
   
-  # Placeholder for recalculated MLR score
-  observeEvent(input$recalculate_score, {
-    output$accessibility_score_result <- renderText({
-      paste("Recalculated Accessibility Score: 90 out of 100.")
-    })
+  # MRT Station Density Ranking Map (for the third subtab)
+  output$mrt_stop_proximity_ranking_map <- renderLeaflet({
+    # Apply color scale to 'Nearby.Mrt.Stops'
+    mrt_stop_proximity_rankings <- mrt_stop_proximity_rankings %>%
+      mutate(color = col_numeric(
+        palette = c("white", "seagreen"),  # Gradient from white (lowest) to dark green (highest)
+        domain = range(mrt_stop_proximity_rankings$Nearby.Mrt.Stops)  # Normalize based on the 'Nearby.Mrt.Stops' column
+      )(Nearby.Mrt.Stops))
+    
+    # Create Leaflet map and render polygons with MRT stop proximity rankings
+    mrt_stop_proximity_ranking_map <- leaflet() %>%
+      addTiles() %>%
+      setView(lng = 103.8198, lat = 1.3521, zoom = 12)  # Centering on Singapore
+    
+    for (i in 1:nrow(mrt_stop_proximity_rankings)) {
+      region_name <- mrt_stop_proximity_rankings$Planning.Region[i]
+      region_index <- which(data$SearchResults$pln_area_n == region_name)
+      geojson_string <- data$SearchResults$geojson[region_index]
+      
+      geojson_data <- st_read(geojson_string)
+      
+      mrt_stop_proximity_ranking_map <- mrt_stop_proximity_ranking_map %>%
+        addPolygons(
+          data = geojson_data,
+          color = mrt_stop_proximity_rankings$color[i],
+          weight = 2,
+          opacity = 1,
+          fillColor = mrt_stop_proximity_rankings$color[i],
+          fillOpacity = 0.9,
+          popup = paste("<strong>Region:</strong>", region_name, "<br>", 
+                        "<strong>Nearby MRT Stops:</strong>", mrt_stop_proximity_rankings$Nearby.Mrt.Stops[i])
+        )
+    }
+    
+    mrt_stop_proximity_ranking_map
   })
-
-
-  
     
     
     # Tab 2: Accessibility Analysis ----

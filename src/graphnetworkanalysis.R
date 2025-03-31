@@ -122,8 +122,8 @@ get_route_data <- function(start, end, routeType = "pt", date, time, mode = "TRA
 
 #usage: input any start or end coordinates
 route <- get_route_data(
-  start = "1.355948,103.9372", #my house
-  end = "1.294178,103.7698", #kent ridge terminal
+  start = "1.30374,103.83214", #orchard
+  end = "1.294178,103.7698", #kent ridge terminal 
   date = "03-24-2025",
   time = "07:35:00",
   maxWalkDistance = 1000,

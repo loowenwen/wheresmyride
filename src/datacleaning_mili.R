@@ -61,6 +61,21 @@ mrt_station_finalfixed <- bind_rows(valid_mrt, fixed_invalid_mrt) %>%
   mutate(station_name = str_remove(station_name, "\\s*mrt\\s*station$"))
 
 
+train_station_codes <- read_excel("../data/TrainStationCodes_Chinese Names.xls") %>% select(-c(mrt_station_chinese, mrt_line_chinese)) %>%
+  mutate(mrt_station_english = str_squish(str_to_lower(mrt_station_english)))
+train_line_df <- read_excel("../data/TrainLineCodes.xlsx") %>% 
+  select(-'Shuttle Direction') %>%
+  separate_rows(`MRT/LRT Direction`, sep = "\\s*\\r\\n\\s*") %>%
+  mutate(`MRT/LRT Direction` = str_remove(`MRT/LRT Direction`, "^\\d+\\)\\s*")) %>%  # Remove "1)", "2)", etc.
+  mutate(`MRT/LRT Direction` = str_trim(`MRT/LRT Direction`)) 
+
+#combines train_station_codes and mrt_station_finalfixed to get codes + mrt station names in one df
+
+mrt_station_codes_locations <- mrt_station_finalfixed %>% 
+  filter(type == "MRT") %>%
+  left_join(train_station_codes, by = c("station_name" = "mrt_station_english"), relationship = "many-to-many") %>%
+  drop_na() #all the depots 
+
 
 ##BUS ROUTES (no need)
 
@@ -113,23 +128,7 @@ bus_routes %>% filter(ServiceNo == "291")
 
 ##CODE TO FIND MRT ROUTES
 
-train_station_codes <- read_excel("../data/TrainStationCodes_Chinese Names.xls") %>% select(-c(mrt_station_chinese, mrt_line_chinese)) %>%
-  mutate(mrt_station_english = str_squish(str_to_lower(mrt_station_english)))
-train_line_df <- read_excel("../data/TrainLineCodes.xlsx") %>% 
-  select(-'Shuttle Direction') %>%
-  separate_rows(`MRT/LRT Direction`, sep = "\\s*\\r\\n\\s*") %>%
-  mutate(`MRT/LRT Direction` = str_remove(`MRT/LRT Direction`, "^\\d+\\)\\s*")) %>%  # Remove "1)", "2)", etc.
-  mutate(`MRT/LRT Direction` = str_trim(`MRT/LRT Direction`)) 
 
-  
-
-
-#combines train_station_codes and mrt_station_finalfixed to get codes + mrt station names in one df
-
-mrt_station_codes_locations <- mrt_station_finalfixed %>% 
-  filter(type == "MRT") %>%
-  left_join(train_station_codes, by = c("station_name" = "mrt_station_english"), relationship = "many-to-many") %>%
-  drop_na() #all the depots 
 
 
 

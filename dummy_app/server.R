@@ -1,11 +1,14 @@
-# server
-library(shiny)
+library(httr)
+library(jsonlite)
 library(leaflet)
-library(plotly)
-library(igraph)  # For graph-based network analysis
+library(dplyr)
+library(sf)
+library(scales)
+library(shinyjs)
+library(shiny)
 
-# Define server logic
 shinyServer(function(input, output) {
+  useShinyjs()
   
   # Dummy data for demonstration
   regions <- data.frame(
@@ -31,72 +34,368 @@ shinyServer(function(input, output) {
     })
   })
   
-  # Reactive expression to calculate accessibility score
-  accessibility_score <- reactive({
-    region_data <- regions[regions$Region == input$region, ]
-    bus_score <- if ("Bus" %in% input$transport_mode) region_data$Bus_Stops / 100 else 0
-    mrt_score <- if ("MRT" %in% input$transport_mode) region_data$MRT_Stations / 10 else 0
-    total_score <- bus_score + mrt_score
-    return(total_score)
-  })
+ # Temporary Data for bus stop and MRT station density map
+  planning_areas <- readRDS("../data/RDS Files/planning_area_polygons.rds")
+  bus_with_planning <- readRDS("../data/RDS Files/bus_with_planning.rds")
+  bus_stop_density <- bus_with_planning %>% count(pln_area_n)
+  mrt_with_planning <-  readRDS("../data/RDS Files/mrt_with_planning.rds")
+  mrt_station_density <- mrt_with_planning %>% count(pln_area_n)
+  missing_pln_areas <- setdiff(planning_areas$pln_area_n, mrt_station_density$pln_area_n)
+  new_rows <- data.frame(pln_area_n = missing_pln_areas, n = 0)
+  mrt_station_density <- rbind(mrt_station_density, new_rows)
   
-  # Reactive expression to calculate travel time (dummy implementation)
-  travel_time <- reactive({
-    region_data <- regions[regions$Region == input$region, ]
-    base_time <- if (input$time %in% 7:9 | input$time %in% 17:19) 30 else 20  # Peak vs off-peak
-    adjusted_time <- base_time + (100 - region_data$Accessibility_Score) / 10
-    return(adjusted_time)
-  })
-  
-  # Output: Text summary of accessibility
-  output$accessibility_summary <- renderText({
-    paste("Accessibility Score for", input$region, ":", round(accessibility_score(), 2))
-  })
-  
-  # Output: Text summary of travel time
-  output$travel_time_summary <- renderText({
-    paste("Estimated Travel Time:", travel_time(), "minutes")
-  })
-  
-  # Output: Bar plot of accessibility scores
-  output$accessibility_plot <- renderPlotly({
-    plot_ly(regions, x = ~Region, y = ~Accessibility_Score, type = "bar", 
-            marker = list(color = "#18BC9C")) %>%
-      layout(yaxis = list(title = "Accessibility Score", gridcolor = "#ECF0F1"), 
-             xaxis = list(title = "Region", gridcolor = "#ECF0F1"),
-             plot_bgcolor = "#FFFFFF", paper_bgcolor = "#FFFFFF")
-  })
-  
-  # Output: Table of optimal route details (dummy implementation)
-  output$optimal_route_table <- renderTable({
-    if (input$calculate_route > 0) {
-      data.frame(
-        Step = c("Start at Home", "Take Bus 123", "Transfer to MRT Line A", "Arrive at Destination"),
-        Time = c("0 min", "10 min", "20 min", "30 min")
-      )
+  # Bus Stop Density Ranking Map (for the second subtab)
+  output$bus_stop_density <- renderLeaflet({
+    # Apply color scale
+    bus_stop_density <- bus_stop_density %>%
+      mutate(color = col_numeric(
+        palette = c("white", "darkblue"),  # Gradient from white (lowest) to dark blue (highest)
+        domain = range(bus_stop_density$n)  # Normalize based on the 'Nearby.Bus.Stops' column
+      )(n))
+    
+    # Create Leaflet map and render polygons with bus stop rankings
+    bus_stop_density_map <- leaflet() %>%
+      addTiles() %>%
+      setView(lng = 103.8198, lat = 1.3521, zoom = 12)  # Centering on Singapore
+    
+    for (i in 1:nrow(bus_stop_density)) {
+      region_name <- bus_stop_density$pln_area_n[i]
+      region_index <- which(planning_areas$pln_area_n == region_name)
+      geojson_data <- st_as_sf(planning_areas$geometry[region_index])
+      
+      bus_stop_density_map <- bus_stop_density_map %>%
+        addPolygons(
+          data = geojson_data,
+          color = bus_stop_density$color[i],
+          weight = 2,
+          opacity = 1,
+          fillColor = bus_stop_density$color[i],
+          fillOpacity = 0.9,
+          popup = paste("<strong>Region:</strong>", region_name, "<br>", 
+                        "<strong>Nearby Bus Stops:</strong>", bus_stop_density$n[i])
+        )
     }
+    
+    bus_stop_density_map
   })
   
-  # Output: Leaflet map for optimal route (dummy implementation)
-  output$route_map <- renderLeaflet({
-    if (input$calculate_route > 0) {
-      leaflet() %>%
+  # MRT Station Density Ranking Map (for the third subtab)
+  output$mrt_station_density_map <- renderLeaflet({
+    # Apply color scale
+    mrt_station_density <- mrt_station_density %>%
+      mutate(color = col_numeric(
+        palette = c("white", "darkorchid4"),  # Gradient from white (lowest) to dark green (highest)
+        domain = range(mrt_station_density$n)  # Normalize based on the 'Nearby.Mrt.Stops' column
+      )(n))
+    
+    # Create Leaflet map and render polygons with MRT stop proximity rankings
+    mrt_station_density_map <- leaflet() %>%
+      addTiles() %>%
+      setView(lng = 103.8198, lat = 1.3521, zoom = 12)  # Centering on Singapore
+    
+    for (i in 1:nrow(mrt_station_density)) {
+      region_name <- mrt_station_density$pln_area_n[i]
+      region_index <- which(planning_areas$pln_area_n == region_name)
+      geojson_data <- st_as_sf(planning_areas$geometry[region_index])
+      
+      mrt_station_density_map <- mrt_station_density_map %>%
+        addPolygons(
+          data = geojson_data,
+          color = mrt_station_density$color[i],
+          weight = 2,
+          opacity = 1,
+          fillColor = mrt_station_density$color[i],
+          fillOpacity = 0.9,
+          popup = paste("<strong>Region:</strong>", region_name, "<br>", 
+                        "<strong>Nearby MRT Stops:</strong>", mrt_station_density$n[i])
+        )
+    }
+    
+    mrt_station_density_map
+  })
+    
+    # Tab 2: Accessibility Analysis ----
+    
+    # Reactive values to control calculations
+    postal_code <- reactiveVal(NULL)
+    initial_calculation <- reactiveVal(FALSE)
+    recalculated <- reactiveVal(FALSE)
+    
+    # Store current slider values for comparison
+    current_settings <- reactiveValues(
+      travel_time = 15,
+      walking_distance = 400,
+      waiting_time = 5,
+      transport_type = "MRT & Bus"
+    )
+    
+    # Observe postal code input
+    observeEvent(input$t2_postal_code, {
+      postal_code(input$t2_postal_code)
+      initial_calculation(FALSE)
+      recalculated(FALSE)
+    })
+    
+    # Observe initial calculation button
+    observeEvent(input$t2_accessibility_score, {
+      req(postal_code())
+      initial_calculation(TRUE)
+      recalculated(FALSE)
+      
+      # Store current default settings
+      current_settings$travel_time <- 15
+      current_settings$walking_distance <- 400
+      current_settings$waiting_time <- 5
+      current_settings$transport_type <- "MRT & Bus"
+    })
+    
+    # Observe recalculate button
+    observeEvent(input$t2_recalculate, {
+      req(postal_code())
+      req(initial_calculation())  # Only works after initial calculation
+      
+      # Only recalculate if settings have changed
+      if (current_settings$travel_time != input$t2_travel_time ||
+          current_settings$walking_distance != input$t2_walking_distance ||
+          current_settings$waiting_time != input$t2_waiting_time ||
+          current_settings$transport_type != input$t2_transport_type) {
+        
+        recalculated(TRUE)
+        
+        # Update stored settings
+        current_settings$travel_time <- input$t2_travel_time
+        current_settings$walking_distance <- input$t2_walking_distance
+        current_settings$waiting_time <- input$t2_waiting_time
+        current_settings$transport_type <- input$t2_transport_type
+      }
+    })
+    
+    # Determine which settings to use for calculation
+    active_settings <- reactive({
+      if (recalculated()) {
+        # Use current slider values if recalculated
+        list(
+          travel_time = input$t2_travel_time,
+          walking_distance = input$t2_walking_distance,
+          waiting_time = input$t2_waiting_time,
+          transport_type = input$t2_transport_type
+        )
+      } else if (initial_calculation()) {
+        # Use default settings for initial calculation
+        list(
+          travel_time = 15,
+          walking_distance = 400,
+          waiting_time = 5,
+          transport_type = "MRT & Bus"
+        )
+      } else {
+        NULL
+      }
+    })
+    
+    # Dummy data for nearest bus stops and MRT stations
+    nearest_transport <- reactive({
+      req(initial_calculation())  # Only calculate when initial button is pressed
+      
+      # Generate random dummy data based on postal code
+      set.seed(as.numeric(charToRaw(substr(postal_code(), 1, 6))))
+      
+      # Random number of bus stops (3-5)
+      n_bus <- sample(3:5, 1)
+      bus_stops <- data.frame(
+        Name = paste("Bus Stop", LETTERS[1:n_bus]),
+        Distance = round(runif(n_bus, 100, 800), 1),
+        Routes = replicate(n_bus, paste(sample(10:199, sample(2:4, 1)), collapse = ", "))
+      )
+      
+      # Random number of MRT stations (1-2)
+      n_mrt <- sample(1:2, 1)
+      mrt_stations <- data.frame(
+        Name = paste("MRT", c("North-South Line", "East-West Line", "Circle Line")[1:n_mrt]),
+        Distance = round(runif(n_mrt, 200, 1500), 1),
+        Travel_Time = sample(5:15, n_mrt, replace = TRUE)
+      )
+      
+      list(bus_stops = bus_stops, mrt_stations = mrt_stations)
+    })
+    
+    # Dummy data for key location travel times
+    key_locations <- reactive({
+      req(initial_calculation())  # Only calculate when initial button is pressed
+      
+      set.seed(as.numeric(charToRaw(substr(postal_code(), 1, 6))))
+      
+      locations <- c("CBD", "Nearest Mall", "Nearest School", "Nearest Hospital", "Nearest Park")
+      data.frame(
+        Location = locations,
+        Distance_km = round(runif(length(locations), 0.5, 10), 1),
+        Travel_Time_mins = sample(5:60, length(locations), replace = TRUE),
+        Transport_Mode = sample(c("MRT", "Bus", "MRT + Bus"), length(locations), replace = TRUE)
+      )
+    })
+    
+    # Calculate accessibility scores
+    accessibility_scores <- reactive({
+      settings <- active_settings()
+      req(settings)  # Only calculate when buttons are pressed
+      
+      # Generate seed based on postal code for consistent dummy results
+      set.seed(as.numeric(charToRaw(substr(postal_code(), 1, 6))))
+      
+      # Base scores affected by user inputs
+      mrt_score <- round(100 - (settings$travel_time * 1.5) + rnorm(1, 10, 3), 1)
+      bus_score <- round(100 - (settings$walking_distance / 20) + rnorm(1, 5, 2), 1)
+      walk_score <- round(100 - (settings$walking_distance / 10) + rnorm(1, 15, 5), 1)
+      congestion_score <- round(100 - (settings$waiting_time * 3) + rnorm(1, 20, 5), 1)
+      
+      # Adjust based on transport preference
+      if (settings$transport_type == "MRT") {
+        mrt_score <- mrt_score * 1.2
+        bus_score <- bus_score * 0.8
+      } else if (settings$transport_type == "Bus") {
+        mrt_score <- mrt_score * 0.8
+        bus_score <- bus_score * 1.2
+      }
+      
+      # Ensure scores are within 0-100 range
+      mrt_score <- min(max(mrt_score, 0), 100)
+      bus_score <- min(max(bus_score, 0), 100)
+      walk_score <- min(max(walk_score, 0), 100)
+      congestion_score <- min(max(congestion_score, 0), 100)
+      
+      # Calculate overall score (weighted average)
+      overall_score <- round(
+        (mrt_score * 0.3 + bus_score * 0.3 + walk_score * 0.2 + congestion_score * 0.2),
+        1
+      )
+      
+      list(
+        overall = overall_score,
+        mrt = mrt_score,
+        bus = bus_score,
+        walk = walk_score,
+        congestion = congestion_score
+      )
+    })
+    
+    # Dynamic score display with color
+    output$t2_dynamic_score_display <- renderUI({
+      if (!initial_calculation()) {
+        return(div(
+          style = "font-size: 48px; font-weight: bold; color: #666;",
+          "00.0"
+        ))
+      }
+      
+      scores <- accessibility_scores()
+      score <- scores$overall
+      
+      # Determine color based on score
+      color <- case_when(
+        score >= 80 ~ "#2ecc71",  # green
+        score >= 60 ~ "#f39c12",  # orange
+        TRUE ~ "#e74c3c"          # red
+      )
+      
+      div(
+        style = paste0("font-size: 48px; font-weight: bold; color: ", color, ";"),
+        score
+      )
+    })
+    
+    # Score interpretation text
+    output$t2_score_interpretation <- renderUI({
+      if (!initial_calculation()) {
+        return(div(
+          style = "font-size: 16px; margin-top: 10px; color: #666;",
+          "Enter a postal code and click 'Get Accessibility Score' to see results"
+        ))
+      }
+      
+      scores <- accessibility_scores()
+      score <- scores$overall
+      
+      text <- case_when(
+        score >= 80 ~ "Excellent accessibility! This location has great transport options.",
+        score >= 60 ~ "Good accessibility. Most amenities are easily reachable.",
+        score >= 40 ~ "Moderate accessibility. Some transport options available.",
+        TRUE ~ "Poor accessibility. Limited transport options available."
+      )
+      
+      div(
+        style = "font-size: 16px; margin-top: 10px;",
+        text
+      )
+    })
+    
+    # Render metric boxes
+    output$t2_mrt_score <- renderText({
+      if (!initial_calculation()) "00.0" else accessibility_scores()$mrt
+    })
+    
+    output$t2_bus_score <- renderText({
+      if (!initial_calculation()) "00.0" else accessibility_scores()$bus
+    })
+    
+    output$t2_walk_score <- renderText({
+      if (!initial_calculation()) "00.0" else accessibility_scores()$walk
+    })
+    
+    output$t2_congestion_score <- renderText({
+      if (!initial_calculation()) "00.0" else accessibility_scores()$congestion
+    })
+    
+    # Render key location times table
+    output$t2_key_location_times <- renderTable({
+      if (!initial_calculation()) {
+        return(data.frame(Note = "Click 'Get Accessibility Score' to see travel times"))
+      }
+      key_locations()
+    })
+    
+    # Render nearest bus/MRT table
+    output$t2_nearest_bus_mrt <- renderTable({
+      if (!initial_calculation()) {
+        return(data.frame(Note = "Click 'Get Accessibility Score' to see nearby transport options"))
+      }
+      
+      transport <- nearest_transport()
+      
+      # Combine bus and MRT data for display
+      bus_df <- transport$bus_stops %>% 
+        mutate(Type = "Bus Stop") %>%
+        select(Type, Name, Distance, Info = Routes)
+      
+      mrt_df <- transport$mrt_stations %>% 
+        mutate(Type = "MRT Station", Info = paste("Travel time:", Travel_Time, "mins")) %>%
+        select(Type, Name, Distance, Info)
+      
+      rbind(bus_df, mrt_df) %>% arrange(Distance)
+    })
+    
+    # Isochrone map
+    output$t2_isochrone_map <- renderLeaflet({
+      # Base map always shown
+      map <- leaflet() %>%
         addTiles() %>%
-        setView(lng = 103.8198, lat = 1.3521, zoom = 13) %>%
-        addMarkers(lng = c(103.8198, 103.8500), lat = c(1.3521, 1.3000), 
-                   popup = c("Home", "Workplace")) %>%
-        addPolylines(lng = c(103.8198, 103.8300, 103.8500), 
-                     lat = c(1.3521, 1.3200, 1.3000), color = "#18BC9C")
-    }
-  })
-  
-  # Output: Table of route steps (dummy implementation)
-  output$route_steps_table <- renderTable({
-    if (input$calculate_route > 0) {
-      data.frame(
-        Step = c("Start at Home", "Take Bus 123", "Transfer to MRT Line A", "Arrive at Destination"),
-        Time = c("0 min", "10 min", "20 min", "30 min")
-      )
-    }
-  })
+        setView(lng = 103.8198, lat = 1.3521, zoom = 12)
+      
+      if (initial_calculation()) {
+        # Use appropriate walking distance based on whether we've recalculated
+        walk_dist <- if (recalculated()) {
+          input$t2_walking_distance
+        } else {
+          400  # Default value
+        }
+        
+        map <- map %>%
+          addMarkers(lng = 103.8198, lat = 1.3521, popup = "Approximate location") %>%
+          addCircles(
+            lng = 103.8198, lat = 1.3521,
+            radius = walk_dist,
+            color = "#ff7800", fillOpacity = 0.2,
+            popup = paste("Walking distance:", walk_dist, "m")
+          )
+      }
+    })
 })

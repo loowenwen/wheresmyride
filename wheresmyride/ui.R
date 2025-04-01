@@ -62,21 +62,21 @@ shinyUI(
                 verbatimTextOutput("location_summary")
               ),
               mainPanel(
-                leafletOutput("location_map", height = 600)  # Show the map here
+                leafletOutput("location_map", height = 500)  # Show the map here
               )
             )
           ),
           
-          # Second subtab: Bus Stop Density Ranking Map
+          # Second subtab: Bus Stop Density Map
           tabPanel(
             "Bus Stop Density",
-            leafletOutput("bus_stop_ranking_map", height = 600)  # Bus stop ranking map output
+            leafletOutput("bus_stop_density_map", height = 500)  # Bus stop ranking map output
           ),
           
-          # Third subtab: MRT Station Density Ranking Map
+          # Third subtab: MRT Station Density Map
           tabPanel(
             "MRT Station Density",
-            leafletOutput("mrt_stop_proximity_ranking_map", height = 600)  # MRT station ranking map output
+            leafletOutput("mrt_station_density_map", height = 500)  # MRT station ranking map output
           )
         )
       ),

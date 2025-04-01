@@ -45,7 +45,7 @@ shinyServer(function(input, output) {
   mrt_station_density <- rbind(mrt_station_density, new_rows)
   
   # Bus Stop Density Ranking Map (for the second subtab)
-  output$bus_stop_ranking_map <- renderLeaflet({
+  output$bus_stop_density <- renderLeaflet({
     # Apply color scale
     bus_stop_density <- bus_stop_density %>%
       mutate(color = col_numeric(

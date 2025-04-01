@@ -97,3 +97,13 @@ st_write(combined_sf, full_path)
 
 # save combined dataframe as RDS
 saveRDS(combined_sf, file = "data/RDS Files/planning_area_polygons.rds")
+
+# troubleshoot missing planning area 
+leaflet(data = planning_areas) %>%
+  addTiles() %>%
+  addPolygons(
+    color = "blue",
+    weight = 1,
+    fillOpacity = 0.4,
+    label = ~pln_area_n
+  )

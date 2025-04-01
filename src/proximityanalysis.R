@@ -1,6 +1,7 @@
 # Necessary Libraries
 library(httr)
 library(jsonlite)
+library(leaflet)
 library(lwgeom)
 library(sf)
 library(tidyverse)
@@ -116,6 +117,7 @@ bus_stops <-
 mrt_stations <-
   readRDS("data/RDS Files/mrt_stations.RDS")
 
+# mrt stations
 mrt_sf <- st_sf(mrt_stations, geometry = mrt_stations$centroid)
 mrt_sf <- st_transform(mrt_sf, 4326)
 
@@ -124,3 +126,25 @@ mrt_with_planning <- st_join(mrt_sf, planning_areas, join = st_within, largest =
 
 mrt_with_planning %>%
   filter(is.na(pln_area_n))
+
+# save as RDS
+saveRDS(mrt_with_planning, file = "data/RDS Files/mrt_with_planning.rds")
+
+# bus stops
+bus_sf <- st_as_sf(bus_stops,
+  coords = c("Longitude", "Latitude"),
+  crs = 4326,
+  remove = FALSE  # keep original lon/lat columns
+)
+
+# join each bus stop to the planning area it falls within
+bus_with_planning <- st_join(bus_sf, planning_areas, join = st_within)
+
+bus_with_planning %>%
+  filter(is.na(pln_area_n))
+
+bus_with_planning <- bus_with_planning %>%
+  filter(!is.na(pln_area_n))
+
+# save as RDS
+saveRDS(bus_with_planning, file = "data/RDS Files/bus_with_planning.rds")

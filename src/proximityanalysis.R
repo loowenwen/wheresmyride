@@ -1,8 +1,9 @@
 # Necessary Libraries
 library(httr)
 library(jsonlite)
+library(lwgeom)
+library(sf)
 library(tidyverse)
-
 
 # LTA DataMall Bus Stops API
 headers = c(
@@ -46,8 +47,80 @@ repeat {
 bus_stops_df <- bind_rows(all_bus_stops)
 head(bus_stops_df)
 
+# save as RDS
+saveRDS(bus_stops_df, file = "data/RDS Files/bus_stops.rds")
 
 
+# MRT Stations Dataset
+getwd()
+mrt_stations_df <- st_read("data/TrainStation_Nov2024/RapidTransitSystemStation.shp") %>%
+  select(-c(TYP_CD, STN_NAM, ATTACHEMEN)) %>%
+  mutate(
+    station_type = str_extract(STN_NAM_DE, "MRT STATION|LRT STATION|DEPOT|FACILITY BUILDING|SUB STATION"),
+    station_name = str_remove(STN_NAM_DE, "MRT STATION|LRT STATION|DEPOT|FACILITY BUILDING|SUB STATION") %>%
+      str_trim()
+  ) %>%
+  rename(shape_area = SHAPE_AREA, shape_length = SHAPE_LEN) %>%
+  select(station_type, station_name, shape_area, shape_length, geometry)
+
+mrt_stations_df <- mrt_stations_df %>%
+  filter(station_type == "MRT STATION" | station_type == "LRT STATION")
+
+mrt_stations_df %>%
+  group_by(station_name) %>%
+  summarise(n = n()) %>%
+  filter(n > 1)
+
+mrt_stations_merged <- mrt_stations_df %>%
+  group_by(station_name) %>%
+  summarise(
+    geometry = st_union(geometry),
+    shape_area = sum(shape_area),
+    shape_length = sum(shape_length),
+    .groups = "drop"
+  )
+
+mrt_stations_merged %>%
+  group_by(station_name) %>%
+  summarise(n = n()) %>%
+  filter(n > 1)
+
+mrt_stations_merged <- mrt_stations_merged %>%
+  mutate(
+    centroid = st_centroid(geometry),
+    centroid_lon = st_coordinates(st_transform(centroid, 4326))[, 1],
+    centroid_lat = st_coordinates(st_transform(centroid, 4326))[, 2]
+  )
+  
+train_station_codes <- read_excel("data/TrainStationCodes_Chinese Names.xls") %>% 
+  select(c(stn_code, mrt_station_english, mrt_line_english)) %>%
+  mutate(mrt_station_english = str_to_upper(mrt_station_english),
+         mrt_line_english = str_to_upper(mrt_line_english)) 
 
 
+# combine mrt_stations_df and train_station_codes
+mrt_stations_final <- train_station_codes %>% 
+  left_join(mrt_stations_merged, by = c("mrt_station_english" = "station_name")) %>%
+  rename(mrt_station = mrt_station_english, 
+         mrt_line = mrt_line_english)
 
+# save as RDS
+saveRDS(mrt_stations_final, file = "data/RDS Files/mrt_stations.rds")
+
+
+# Import Previously Saved RDS Files
+planning_areas <- 
+  readRDS("data/RDS Files/planning_area_polygons.RDS")
+bus_stops <- 
+  readRDS("data/RDS Files/bus_stops.RDS")
+mrt_stations <-
+  readRDS("data/RDS Files/mrt_stations.RDS")
+
+mrt_sf <- st_sf(mrt_stations, geometry = mrt_stations$centroid)
+mrt_sf <- st_transform(mrt_sf, 4326)
+
+# join each MRT station to the planning area it falls within
+mrt_with_planning <- st_join(mrt_sf, planning_areas, join = st_within, largest = TRUE)
+
+mrt_with_planning %>%
+  filter(is.na(pln_area_n))

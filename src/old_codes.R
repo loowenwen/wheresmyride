@@ -374,3 +374,29 @@ extract_coordinates <- function(output) {
   # Return the data frame (full precision retained)
   return(coords_df)
 }
+
+# identify and remove invalid geometries
+invalid_geometries <- which(!st_is_valid(mrt_station$geometry))
+valid_mrt <- mrt_station[-invalid_geometries, ] %>%
+  st_transform(crs = 4326) %>%
+  mutate(geometry = st_make_valid(geometry),
+         centroid = st_centroid(geometry), 
+         latitude = st_coordinates(centroid)[, 2], 
+         longitude = st_coordinates(centroid)[, 1]) 
+
+# Fix and transform invalid geometries
+fixed_invalid_mrt <- mrt_station[invalid_geometries, ] %>%
+  mutate(geometry = st_make_valid(geometry)) %>%
+  st_transform(crs = 4326) %>%
+  mutate(centroid = st_centroid(st_union(st_cast(geometry, "POLYGON"))),
+         latitude = st_coordinates(centroid)[, 2],
+         longitude = st_coordinates(centroid)[, 1])
+
+# combine fixed datasets
+mrt_station_finalfixed <- bind_rows(valid_mrt, fixed_invalid_mrt) %>% 
+  select(TYP_CD_DES, STN_NAM_DE, longitude, latitude) %>%
+  st_drop_geometry() %>%
+  rename(station_name = STN_NAM_DE, type = TYP_CD_DES) %>%
+  mutate(type = factor(type, levels = c("MRT", "LRT"))) %>%
+  mutate(station_name = str_squish(str_to_lower(station_name))) %>%
+  mutate(station_name = str_remove(station_name, "\\s*mrt\\s*station$"))

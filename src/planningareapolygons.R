@@ -69,18 +69,21 @@ if (status_code(response) == 200) {
 data <- data[["SearchResults"]]
 
 # initialize an empty sf dataframe
+spatial_polygon <- st_read(data$geojson[1], quiet = TRUE)
 combined_sf <- st_sf(geometry = st_sfc(), crs = st_crs(spatial_polygon))
 combined_sf$pln_area_n <- character(0)
 
-# manually rerun for all 55 planning regions
-i <- 55
+for (i in 1:55) {
+  spatial_polygon <- st_read(data$geojson[i], quiet = TRUE)
+  spatial_polygon$pln_area_n <- data$pln_area_n[i]
+  combined_sf <- rbind(combined_sf, spatial_polygon)
+}
 
+# manually rerun for all 55 planning areas
+i <- 55
 spatial_polygon <- st_read(data$geojson[i], quiet = TRUE)
 spatial_polygon$pln_area_n <- data$pln_area_n[i]
 plot(spatial_polygon$geometry)
-
-# append to the combined dataframe
-combined_sf <- rbind(combined_sf, spatial_polygon)
 
 # save separately
 file_name <- paste0(data$pln_area_n[i], ".geojson")
@@ -91,3 +94,6 @@ st_write(spatial_polygon, full_path)
 file_name <-"ALL PLANNING AREAS.geojson"
 full_path <- file.path("data/PlanningAreaPolygons", file_name)
 st_write(combined_sf, full_path)
+
+# save combined dataframe as RDS
+saveRDS(combined_sf, file = "data/RDS Files/planning_area_polygons.rds")

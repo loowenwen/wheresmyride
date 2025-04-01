@@ -34,38 +34,80 @@ shinyUI(
     # tabbed layout for multiple features
     tabsetPanel(
       
-      # tab 1: overview
+      ## Tab 1
       tabPanel(
         "Overview",
-        tabsetPanel(
-          # First subtab: Overview (current code)
-          tabPanel(
-            "Overview",
-            sidebarLayout(
-              sidebarPanel(
-                style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
+        div(
+          style = "height: 100vh; display: flex; flex-direction: column;",  # Full height panel
+          fluidRow(
+            style = "flex-grow: 1;",  # Make sure the row expands
+            
+            # Left column: Overview content
+            column(
+              width = 6,
+              div(
+                style = "display: flex; flex-direction: column; height: 100%;",
+                sidebarLayout(
+                  sidebarPanel(
+                    style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px; height: 250px; flex-shrink: 0;", 
+                    
+                    # Input: Text input for postal code
+                    textInput("postal_code", "Enter Postal Code", 
+                              value = "", placeholder = "e.g., 123456"),
+                    
+                    # Input: Slider to select search radius (in meters)
+                    sliderInput("search_radius", "Search Radius (meters)", 
+                                min = 100, max = 2000, value = 500, step = 100),
+                    
+                    # Input: Button to search
+                    actionButton("search_location", "Search", 
+                                 class = "btn-primary", style = "width: 100%;"),
+                    
+                    # Output: Summary statistics
+                    h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
+                    verbatimTextOutput("location_summary")
+                  ),
+                  mainPanel(
+                    style = "flex-grow: 1; display: flex;",  # Ensure map takes remaining space
+                    div(
+                      style = "flex-grow: 1; position: relative;",  # Allow Leaflet to expand
+                      leafletOutput("location_map", height = "700px")  # Fixed pixel height
+                    )
+                  )
+                )
+              )
+            ),
+            
+            # Right column: Dropdown + density map
+            column(
+              width = 6,
+              div(
+                style = "display: flex; flex-direction: column; height: 100%;",
                 
-                # Input: Text input for postal code
-                textInput("postal_code", "Enter Postal Code", 
-                          value = "", placeholder = "e.g., 123456"),
+                # Dropdown menu for selecting density map
+                div(
+                  style = "margin-bottom: 10px; height: 80px; flex-shrink: 0;",
+                  selectInput("density_map_type", "Density Map of:", 
+                              choices = c("MRT Stations" = "mrt", "Bus Stops" = "bus"))
+                ),
                 
-                # Input: Slider to select search radius (in meters)
-                sliderInput("search_radius", "Search Radius (meters)", 
-                            min = 100, max = 2000, value = 500, step = 100),
-                
-                # Input: Button to search
-                actionButton("search_location", "Search", 
-                             class = "btn-primary", style = "width: 100%;"),
-                
-                # Output: Summary statistics
-                h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
-                verbatimTextOutput("location_summary")
-              ),
-              mainPanel(
-                leafletOutput("location_map", height = 500)  # Show the map here
+                # Map container
+                div(
+                  style = "flex-grow: 1; position: relative;",  # Allow map to expand properly
+                  conditionalPanel(
+                    condition = "input.density_map_type == 'mrt'",
+                    leafletOutput("mrt_station_density_map", height = "610px")  # Fixed height
+                  ),
+                  conditionalPanel(
+                    condition = "input.density_map_type == 'bus'",
+                    leafletOutput("bus_stop_density_map", height = "610px")  # Fixed height
+                  )
+                )
               )
             )
-          ),
+          )
+        )
+      ),
           
           # Second subtab: Bus Stop Density Map
           tabPanel(

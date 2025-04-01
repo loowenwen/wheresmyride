@@ -1,6 +1,11 @@
-library(shiny)
-library(shinyjs)
+library(httr)
+library(jsonlite)
 library(leaflet)
+library(dplyr)
+library(sf)
+library(scales)
+library(shinyjs)
+library(shiny)
 
 shinyServer(function(input, output) {
   useShinyjs()

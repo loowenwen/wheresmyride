@@ -35,10 +35,10 @@ shinyServer(function(input, output) {
   })
   
  # Temporary Data for bus stop and MRT station density map
-  planning_areas <- readRDS("data/RDS Files/planning_area_polygons.rds")
-  bus_with_planning <- readRDS("data/RDS Files/bus_with_planning.rds")
+  planning_areas <- readRDS("../data/RDS Files/planning_area_polygons.rds")
+  bus_with_planning <- readRDS("../data/RDS Files/bus_with_planning.rds")
   bus_stop_density <- bus_with_planning %>% count(pln_area_n)
-  mrt_with_planning <-  readRDS("data/RDS Files/mrt_with_planning.rds")
+  mrt_with_planning <-  readRDS("../data/RDS Files/mrt_with_planning.rds")
   mrt_station_density <- mrt_with_planning %>% count(pln_area_n)
   missing_pln_areas <- setdiff(planning_areas$pln_area_n, mrt_station_density$pln_area_n)
   new_rows <- data.frame(pln_area_n = missing_pln_areas, n = 0)

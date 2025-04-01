@@ -67,6 +67,7 @@ shinyUI(
                     h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
                     verbatimTextOutput("location_summary")
                   ),
+                  
                   mainPanel(
                     style = "flex-grow: 1; display: flex;",  # Ensure map takes remaining space
                     div(
@@ -105,20 +106,6 @@ shinyUI(
                 )
               )
             )
-          )
-        )
-      ),
-          
-          # Second subtab: Bus Stop Density Map
-          tabPanel(
-            "Bus Stop Density",
-            leafletOutput("bus_stop_density_map", height = 500)  # Bus stop ranking map output
-          ),
-          
-          # Third subtab: MRT Station Density Map
-          tabPanel(
-            "MRT Station Density",
-            leafletOutput("mrt_station_density_map", height = 500)  # MRT station ranking map output
           )
         )
       ),
@@ -246,7 +233,6 @@ shinyUI(
             # Output: Table of route steps
             h4("Route Steps", style = "color: #2C3E50; margin-top: 20px;"),
             tableOutput("route_steps_table")
-            )
           )
         )
       ),
@@ -296,5 +282,7 @@ shinyUI(
       color: white;
     }
   ")))
+  
   )
+)
 )

@@ -29,80 +29,85 @@ shinyServer(function(input, output) {
     })
   })
   
+ # Temporary Data for bus stop and MRT station density map
+  planning_areas <- readRDS("data/RDS Files/planning_area_polygons.rds")
+  bus_with_planning <- readRDS("data/RDS Files/bus_with_planning.rds")
+  bus_stop_density <- bus_with_planning %>% count(pln_area_n)
+  mrt_with_planning <-  readRDS("data/RDS Files/mrt_with_planning.rds")
+  mrt_station_density <- mrt_with_planning %>% count(pln_area_n)
+  missing_pln_areas <- setdiff(planning_areas$pln_area_n, mrt_station_density$pln_area_n)
+  new_rows <- data.frame(pln_area_n = missing_pln_areas, n = 0)
+  mrt_station_density <- rbind(mrt_station_density, new_rows)
+  
   # Bus Stop Density Ranking Map (for the second subtab)
   output$bus_stop_ranking_map <- renderLeaflet({
-    # Apply color scale to 'Nearby.Bus.Stops'
-    bus_stop_rankings <- bus_stop_rankings %>%
+    # Apply color scale
+    bus_stop_density <- bus_stop_density %>%
       mutate(color = col_numeric(
         palette = c("white", "darkblue"),  # Gradient from white (lowest) to dark blue (highest)
-        domain = range(bus_stop_rankings$Nearby.Bus.Stops)  # Normalize based on the 'Nearby.Bus.Stops' column
-      )(Nearby.Bus.Stops))
+        domain = range(bus_stop_density$n)  # Normalize based on the 'Nearby.Bus.Stops' column
+      )(n))
     
     # Create Leaflet map and render polygons with bus stop rankings
-    bus_stop_ranking_map <- leaflet() %>%
+    bus_stop_density_map <- leaflet() %>%
       addTiles() %>%
       setView(lng = 103.8198, lat = 1.3521, zoom = 12)  # Centering on Singapore
     
-    for (i in 1:nrow(bus_stop_rankings)) {
-      region_name <- bus_stop_rankings$Planning.Region[i]
-      region_index <- which(data$SearchResults$pln_area_n == region_name)
-      geojson_string <- data$SearchResults$geojson[region_index]
+    for (i in 1:nrow(bus_stop_density)) {
+      region_name <- bus_stop_density$pln_area_n[i]
+      region_index <- which(planning_areas$pln_area_n == region_name)
+      geojson_data <- st_as_sf(planning_areas$geometry[region_index])
       
-      geojson_data <- st_read(geojson_string)
-      
-      bus_stop_ranking_map <- bus_stop_ranking_map %>%
+      bus_stop_density_map <- bus_stop_density_map %>%
         addPolygons(
           data = geojson_data,
-          color = bus_stop_rankings$color[i],
+          color = bus_stop_density$color[i],
           weight = 2,
           opacity = 1,
-          fillColor = bus_stop_rankings$color[i],
+          fillColor = bus_stop_density$color[i],
           fillOpacity = 0.9,
           popup = paste("<strong>Region:</strong>", region_name, "<br>", 
-                        "<strong>Nearby Bus Stops:</strong>", bus_stop_rankings$Nearby.Bus.Stops[i])
+                        "<strong>Nearby Bus Stops:</strong>", bus_stop_density$n[i])
         )
     }
     
-    bus_stop_ranking_map
+    bus_stop_density_map
   })
   
   # MRT Station Density Ranking Map (for the third subtab)
-  output$mrt_stop_proximity_ranking_map <- renderLeaflet({
-    # Apply color scale to 'Nearby.Mrt.Stops'
-    mrt_stop_proximity_rankings <- mrt_stop_proximity_rankings %>%
+  output$mrt_station_density_map <- renderLeaflet({
+    # Apply color scale
+    mrt_station_density <- mrt_station_density %>%
       mutate(color = col_numeric(
-        palette = c("white", "seagreen"),  # Gradient from white (lowest) to dark green (highest)
-        domain = range(mrt_stop_proximity_rankings$Nearby.Mrt.Stops)  # Normalize based on the 'Nearby.Mrt.Stops' column
-      )(Nearby.Mrt.Stops))
+        palette = c("white", "darkorchid4"),  # Gradient from white (lowest) to dark green (highest)
+        domain = range(mrt_station_density$n)  # Normalize based on the 'Nearby.Mrt.Stops' column
+      )(n))
     
     # Create Leaflet map and render polygons with MRT stop proximity rankings
-    mrt_stop_proximity_ranking_map <- leaflet() %>%
+    mrt_station_density_map <- leaflet() %>%
       addTiles() %>%
       setView(lng = 103.8198, lat = 1.3521, zoom = 12)  # Centering on Singapore
     
-    for (i in 1:nrow(mrt_stop_proximity_rankings)) {
-      region_name <- mrt_stop_proximity_rankings$Planning.Region[i]
-      region_index <- which(data$SearchResults$pln_area_n == region_name)
-      geojson_string <- data$SearchResults$geojson[region_index]
+    for (i in 1:nrow(mrt_station_density)) {
+      region_name <- mrt_station_density$pln_area_n[i]
+      region_index <- which(planning_areas$pln_area_n == region_name)
+      geojson_data <- st_as_sf(planning_areas$geometry[region_index])
       
-      geojson_data <- st_read(geojson_string)
-      
-      mrt_stop_proximity_ranking_map <- mrt_stop_proximity_ranking_map %>%
+      mrt_station_density_map <- mrt_station_density_map %>%
         addPolygons(
           data = geojson_data,
-          color = mrt_stop_proximity_rankings$color[i],
+          color = mrt_station_density$color[i],
           weight = 2,
           opacity = 1,
-          fillColor = mrt_stop_proximity_rankings$color[i],
+          fillColor = mrt_station_density$color[i],
           fillOpacity = 0.9,
           popup = paste("<strong>Region:</strong>", region_name, "<br>", 
-                        "<strong>Nearby MRT Stops:</strong>", mrt_stop_proximity_rankings$Nearby.Mrt.Stops[i])
+                        "<strong>Nearby MRT Stops:</strong>", mrt_station_density$n[i])
         )
     }
     
-    mrt_stop_proximity_ranking_map
+    mrt_station_density_map
   })
-    
     
     # Tab 2: Accessibility Analysis ----
     

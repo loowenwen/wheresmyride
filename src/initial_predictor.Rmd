@@ -1,0 +1,326 @@
+---
+title: "DSE3101 Project"
+author: "Ryan Chow"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, include = TRUE,
+                      fig.align = "center",  out.width = "80%")
+
+rm(list = ls())
+
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(rjson)
+library(httr)
+library(jsonlite)
+library(geosphere)
+library(sf)
+library(purrr)
+```
+
+
+```{r}
+
+# AUTHENTICATION
+
+
+# define API endpoint for authentication
+auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
+
+# define email and password 
+email <- "loowenwen1314@gmail.com"
+password <- "sochex-6jobge-fomsYb"
+
+# create JSON payload
+auth_body <- list(
+  email = email,
+  password = password
+)
+
+# make API request
+response <- POST(
+  url = auth_url,
+  body = auth_body,
+  encode = "json"
+)
+
+# check response status
+if (status_code(response) == 200) {
+  # parse JSON response
+  result <- content(response, as = "text", encoding = "UTF-8")
+  data <- fromJSON(result)
+  
+  # extract token and store it as an environment variable
+  token <- data$access_token
+  Sys.setenv(ONEMAP_TOKEN = token)
+  
+} else {
+  print(paste("Error:", status_code(response)))
+}
+
+
+```
+
+### MRT Crowd Density by Station
+
+```{r}
+parse_crowd_json <- function(filepath) {
+  raw <- fromJSON(filepath)
+  stations_df <- raw$value$Stations[[1]]
+  
+  all_intervals <- purrr::map_dfr(1:nrow(stations_df), function(i) {
+    station_code <- stations_df$Station[i]
+    interval_df <- stations_df$Interval[[i]]
+    interval_df %>% mutate(Station = station_code)
+  })
+  
+  return(all_intervals)
+}
+
+mrt_crowdDensity <- bind_rows(
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_CCL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_DTL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_EWL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_CEL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_CGL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_NEL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_NSL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_BPL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_SLRT.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_PLRT.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_TEL.json")
+) %>%
+  mutate(
+    datetime = ymd_hms(Start),
+    hour = hour(datetime),
+    crowd_score = case_when(
+      CrowdLevel == "l" ~ 1,
+      CrowdLevel == "m" ~ 2,
+      CrowdLevel == "h" ~ 3,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  group_by(Station) %>%
+  summarise(avg_crowd = mean(crowd_score, na.rm = TRUE))
+
+```
+
+
+### Engineering of all Features
+
+```{r}
+engineer_features <- function(lat, lon, data_paths) {
+  # Load datasets
+  mrt_lrt_coords <- read_csv("../data/MRTStations.csv", show_col_types = FALSE)
+  #mrt tap in and out information taken from Feb 2025
+  mrt_passVol <- read_csv("../data/transport_node_train_202502.csv", show_col_types = FALSE)
+  #bus tap in and out information taken from Feb 2025
+  busstops_passengerVolume <- read_csv("../data/PV_busstops.csv", show_col_types = FALSE) %>%
+    mutate(PT_CODE = str_pad(as.character(PT_CODE), width = 5, side = "left", pad = "0")) %>%     #fixed problem where some bus stop codes had the first number removed and printed as 4 numbers instead of 5
+    rename(BusStop_code = PT_CODE)
+  #location data of bus stops
+  bus_coords <- st_read("../data/BusStopLocation_Nov2024/BusStop.shp", quiet = TRUE) %>%
+    rename(BusStop_code = BUS_STOP_N) %>%
+    st_transform(crs = 4326) %>%
+    mutate(
+      BusStop_code = str_pad(as.character(BusStop_code), width = 5, side = "left", pad = "0"),
+      Longitude = st_coordinates(geometry)[, 1],
+      Latitude = st_coordinates(geometry)[, 2]
+    ) %>%
+    st_drop_geometry()
+
+  # Adding station names to mrt_crowdDensity data
+  mrtNames_crowdDensity <- mrt_crowdDensity %>%
+  rowwise() %>%
+  mutate(
+    STN_NAME = mrt_lrt_coords$STN_NAME[
+      which(str_detect(mrt_lrt_coords$STN_NO, Station))[1]
+    ]
+  )
+  
+  # Separated stations with more than one line, and found the average tap in per station (e.g. Jurong East passenger volume / 2 = NS1 = EW24) to prevent double counting
+  mrt_passVol <- mrt_passVol %>%
+    mutate(
+      PT_CODE_split = str_split(PT_CODE, "/"),
+      num_codes = map_int(PT_CODE_split, length),
+      pv_per_station = TOTAL_TAP_IN_VOLUME / num_codes
+    ) %>%
+    unnest(PT_CODE_split) %>%
+    rename(STN_CODE = PT_CODE_split) %>%
+    left_join(
+      mrt_lrt_coords %>% select(STN_NO, STN_NAME),
+      by = c("STN_CODE" = "STN_NO")
+    )
+  
+  
+  #  Filters MRT stations within 500m
+  mrt_nearby <- mrt_lrt_coords %>%
+    mutate(dist = distHaversine(cbind(Longitude, Latitude), c(lon, lat))) %>%
+    filter(dist < 500) 
+  
+  # Returns list of nearby MRT
+  nearby_mrt_station_names <- mrt_nearby$STN_NAME
+  
+  # 1. Returns number of mrt stations within 500m
+  num_mrt_nearby = nrow(mrt_nearby)
+
+  # 2. average of nearby MRT stations' crowd score
+  mrt_crowd_score <- mrtNames_crowdDensity %>%
+    filter(STN_NAME %in% mrt_nearby$STN_NAME) %>%
+    distinct(STN_NAME, .keep_all = TRUE) %>%
+    summarise(avg_crowd = mean(avg_crowd, na.rm = TRUE)) %>%
+    pull(avg_crowd)
+  
+  # Ensure it's a scalar (numeric)
+  if (length(mrt_crowd_score) != 1) {
+    mrt_crowd_score <- mean(mrt_crowd_score, na.rm = TRUE)
+  }
+    
+  # 3. Nearby MRT station passenger volume
+  mrt_passVol_score <- mrt_nearby %>%
+    left_join(mrt_passVol, by = "STN_NAME") %>%
+    group_by(STN_NAME) %>%
+    summarise(avg_tap_in_vol = mean(pv_per_station, na.rm = TRUE))
+  
+  avg_mrt_volume <- mean(mrt_passVol_score$avg_tap_in_vol, na.rm = TRUE)
+  max_mrt_volume <- max(mrt_passVol_score$avg_tap_in_vol, na.rm = TRUE)
+    
+  
+  # 3. Nearby bus stops (within 500m)
+  near_bus_stops <- bus_coords %>%
+    mutate(dist = distHaversine(cbind(Longitude, Latitude), c(lon, lat))) %>%
+    filter(dist < 500)
+
+  nearby_busStopCodes <- near_bus_stops$BusStop_code
+  # --- Bus services temporarily commented out ---
+  # bus_service_count <- busServices %>%
+  #   select(ServiceNo, OriginCode, DestinationCode) %>%
+  #   pivot_longer(c(OriginCode, DestinationCode), names_to = "type", values_to = "PT_CODE") %>%
+  #   mutate(PT_CODE = str_pad(as.character(PT_CODE), width = 5, side = "left", pad = "0")) %>%
+  #   filter(PT_CODE %in% near_bus_stops$PT_CODE) %>%
+  #   distinct(PT_CODE, ServiceNo) %>%
+  #   count(PT_CODE, name = "num_bus_services") %>%
+  #   summarise(total_services = sum(num_bus_services, na.rm = TRUE)) %>%
+  #   pull(total_services)
+  #
+  # if (length(bus_service_count) == 0 || is.na(bus_service_count)) bus_service_count <- 0
+  bus_service_count <- NA  # placeholder so can be added if usable.
+
+  # 4. Passenger volume: average per stop
+  bus_volumes_joined <- near_bus_stops %>%
+    left_join(busstops_passengerVolume, by = "BusStop_code")
+
+  total_volume <- sum(bus_volumes_joined$TOTAL_TAP_IN_VOLUME, na.rm = TRUE)
+  num_stops <- nrow(bus_volumes_joined)
+  avg_bus_volume_per_stop <- ifelse(num_stops > 0, total_volume / num_stops, 0)
+
+  # 5. Max volume across all stops
+  max_bus_volume <- max(busstops_passengerVolume$TOTAL_TAP_IN_VOLUME, na.rm = TRUE)
+
+
+  # Final feature list
+  features <- list(
+    mrt_crowd_score = mrt_crowd_score,
+    mrt_passenger_volume = avg_mrt_volume,
+    max_mrt_volume = max_mrt_volume,
+    mrt_nearby = num_mrt_nearby,
+    nearby_mrt_stations = nearby_mrt_station_names,
+    bus_services = NA,
+    bus_passenger_volume = avg_bus_volume_per_stop,
+    max_bus_volume = max_bus_volume,
+    nearby_busStopCodes = nearby_busStopCodes  
+  )
+
+  return(features)
+}
+```
+
+### Predict score using current features, equally weighted
+
+```{r}
+normalised_score <- function(features) {
+  norm_mrt_crowd <- (features$mrt_crowd_score - 1) / 2   # normalised to [0,1], lower is better
+  norm_num_mrt <- min(features$mrt_nearby, 5) / 5    # for now it is taken as 5 max, normalised to [0,1], higher is better; doing more eda/ research to check if any other number is suitable
+  norm_mrtVolume <- ifelse(features$max_mrt_volume > 0,
+                           min(features$mrt_passenger_volume, features$max_mrt_volume) / features$max_mrt_volume,
+                           0)
+  norm_busVolume <- ifelse(features$max_bus_volume > 0,      # Normalised using max volume
+                        min(features$bus_passenger_volume, features$max_bus_volume) / features$max_bus_volume,
+                        0)
+
+  # Individual components of the score
+  mrt_crowd_component <- (1 - norm_mrt_crowd)  # lower = better accessibility
+  num_mrt_component <- norm_num_mrt
+  mrt_volume_component <- (1 - norm_mrtVolume)  # lower = better accessibility
+  bus_volume_component <- (1 - norm_busVolume)  # lower = better accessibility
+  
+
+  # Combine components 
+  score <- score <- (sum(
+    mrt_crowd_component,
+    num_mrt_component,
+    mrt_volume_component,
+    bus_volume_component
+  ) / 4 ) * 100
+  
+  breakdown <- list(
+    mrt_crowd_raw = features$mrt_crowd_score,
+    num_mrt_and_lrt = features$mrt_nearby, # for now it is taken as 5 max, normalised to [0,1], higher is better; doing more eda/ research to check if any other number is suitable
+    mrt_passenger_volume_raw = features$mrt_passenger_volume,
+    nearby_mrt_stations = features$nearby_mrt_stations,
+    
+    bus_passenger_volume_raw = features$bus_passenger_volume,
+    nearby_busStopCodes = features$nearby_busStopCodes,  
+    total_score = score
+  )
+
+  return(breakdown)
+}
+```
+
+
+```{r}
+predict_accessibility <- function(postal_code) {
+  base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+  token <- Sys.getenv("ONEMAP_TOKEN")
+  
+  request_url <- paste0(base_url, "?searchVal=", postal_code, "&returnGeom=Y&getAddrDetails=Y")
+  
+  res <- GET(request_url, add_headers(Authorization = token))
+  parsed <- content(res, as = "parsed", type = "application/json")
+  
+  if (length(parsed$results) == 0) {
+    stop("No results found for this postal code.")
+  }
+  
+  lat <- as.numeric(parsed$results[[1]]$LATITUDE)
+  lon <- as.numeric(parsed$results[[1]]$LONGITUDE)
+  
+  features <- engineer_features(lat, lon)
+
+  score_breakdown <- normalised_score(features)
+  
+  return(list(
+    postal_code = postal_code,
+    latitude = lat,
+    longitude = lon,
+    score = score_breakdown$total_score,
+    score_breakdown = score_breakdown,
+    features = features
+  ))
+}
+```
+
+
+```{r}
+# Test
+result <- predict_accessibility("543305")
+print(result$score_breakdown)
+```
+
+

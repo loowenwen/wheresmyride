@@ -2,11 +2,12 @@ library(httr)
 library(jsonlite)
 library(leaflet)
 library(dplyr)
+library(plotly)
 library(sf)
 library(scales)
 library(shinyjs)
 library(shiny)
-source("helpers.R") 
+source("global.R") 
 
 shinyUI(
   fluidPage(useShinyjs(),
@@ -209,30 +210,45 @@ shinyUI(
           sidebarPanel(
             style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
             
-            # Input: Text input for home location
-            textInput("home_location", "Enter Home Location (e.g., Postal Code)", 
-                      value = "", placeholder = "e.g., 123456"),
+            # Input: Dropdown input for home location
+            selectInput("bto_a_postal", "Select BTO A:", 
+                        choices = c("Northshore Edge (820123)", "Fernvale Vines (792456)", 
+                                    "Tengah Parkview (688901)", "Geylang Meadow (389001)", 
+                                    "Queenstown Beacon (149752)")),
+            selectInput("bto_b_postal", "Select BTO B:", 
+                        choices = c("Northshore Edge (820123)", "Fernvale Vines (792456)", 
+                                    "Tengah Parkview (688901)", "Geylang Meadow (389001)", 
+                                    "Queenstown Beacon (149752)")),
             
-            # Input: Text input for destination
-            textInput("destination", "Enter Destination (e.g., Workplace)", 
-                      value = "", placeholder = "e.g., Raffles Place"),
+            #Input : Text input for destination.
+            textInput("workplace_compare", "Enter Workplace Postal Code:", value = "", placeholder = "e.g., 018989"),
             
-            # Input: Button to calculate optimal route
-            actionButton("calculate_route", "Calculate Optimal Route", 
-                         class = "btn-primary", style = "width: 100%;")
+            #Input : Select input for transport mode
+            selectInput("transport_mode_compare", "Select Transport Mode:", choices = c("Bus", "MRT", "Mixed")),
+            
+            #Input : Button input to compare
+            actionButton("compare_commute", "Estimate Commute Time", class = "btn-primary", style = "width: 100%;"),
+            hr(),
+            h4("Estimated Commute Time"),
+            tableOutput("commute_table_compare")
           ),
           
           # Main panel for displaying outputs
           mainPanel(
-            style = "background-color: #FFFFFF; padding: 20px; border-radius: 10px;",
-            
-            # Output: Leaflet map with optimal route
-            h4("Optimal Route Map", style = "color: #2C3E50;"),
-            leafletOutput("route_map", height = "500px"),
-            
-            # Output: Table of route steps
-            h4("Route Steps", style = "color: #2C3E50; margin-top: 20px;"),
-            tableOutput("route_steps_table")
+            fluidRow(
+              column(width = 6,
+                     h4("Radar Chart: BTO A"),
+                     plotlyOutput("radar_a"),
+                     h5("Human Review for BTO A"),
+                     verbatimTextOutput("bto_a_review")
+              ),
+              column(width = 6,
+                     h4("Radar Chart: BTO B"),
+                     plotlyOutput("radar_b"),
+                     h5("Human Review for BTO B"),
+                     verbatimTextOutput("bto_b_review")
+              )
+            )
           )
         )
       ),

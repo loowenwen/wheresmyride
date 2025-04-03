@@ -7,6 +7,7 @@ library(scales)
 library(shinyjs)
 library(shiny)
 library(plotly)
+library(tidyverse)
 
 shinyServer(function(input, output) {
   useShinyjs()

@@ -1,3 +1,6 @@
+library(dplyr)
+library(sf)
+
 # ---- Load Required Spatial Data ----
 data_dir <- "../data/RDS Files"
 
@@ -9,10 +12,12 @@ mrt_with_planning  <- readRDS(file.path(data_dir, "mrt_with_planning.rds"))
 
 # Bus stop density by planning area
 bus_stop_density <- bus_with_planning %>% 
+  st_drop_geometry() %>%
   count(pln_area_n)
 
 # MRT station density by planning area
 mrt_station_density <- mrt_with_planning %>% 
+  st_drop_geometry() %>%
   count(pln_area_n)
 
 # Fill in planning areas that are missing MRT stations with zero counts

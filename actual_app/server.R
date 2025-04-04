@@ -9,7 +9,7 @@ library(shiny)
 library(plotly)
 library(tidyverse)
 
-shinyServer(function(input, output) {
+shinyServer(function(input, output, session) {
   useShinyjs()
   
   # ==== TAB 1: Location Overview & Density Maps ====
@@ -289,4 +289,39 @@ shinyServer(function(input, output) {
       paste("BTO B (", input$bto_b_postal, ") has shorter commute but weaker MRT access.")
     })
   })
+  
+  # --- Home Tab ---
+  # dummy data for BTO locations
+  bto_dummy <- data.frame(
+    project_name = c("Tampines North Grove", "Woodlands Spring", "Bukit Batok Vista"),
+    lat = c(1.3700, 1.4370, 1.3480),
+    lng = c(103.9400, 103.7860, 103.7490),
+    launch_date = c("Jun 2025", "Sep 2025", "Dec 2025")
+  )
+  
+  # render BTO map
+  output$bto_map <- renderLeaflet({
+    leaflet(bto_dummy) %>%
+      addProviderTiles(providers$CartoDB.Positron) %>%
+      addMarkers(
+        ~lng, ~lat,
+        popup = ~paste0("<b>", project_name, "</b><br>Launch Date: ", launch_date)
+      ) %>%
+      setView(lng = 103.8198, lat = 1.3521, zoom = 11)
+  })
+  
+  # navigation logic
+  observeEvent(input$go_heatmap, {
+    updateTabsetPanel(session, "mainTabs", selected = "heatmap")
+  })
+  observeEvent(input$go_commute, {
+    updateTabsetPanel(session, "mainTabs", selected = "commute")
+  })
+  observeEvent(input$go_compare, {
+    updateTabsetPanel(session, "mainTabs", selected = "compare")
+  })
+  observeEvent(input$go_insights, {
+    updateTabsetPanel(session, "mainTabs", selected = "insights")
+  })
+  
 })

@@ -11,34 +11,98 @@ source("global.R")
 
 shinyUI(
   navbarPage(
+    theme = shinytheme("flatly"),
     title = div(
-      img(src = "logo.png", style = "width: 150px")
+      img(src = "logo.png", style = "height: 30px"),
     ),
-    id = "mainNavbar",
     
-    header = tagList(
-      useShinyjs(),
-      tags$head(
-        tags$style(HTML("
-          body { font-family: 'Times New Roman', serif; background-color: #f5f7fa; }
-          h1, h2, h3, h4 { color: #1e293b; }
-          .panel { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 20px; background: white; margin-bottom: 20px; }
-          .btn-primary { background-color: #0f172a; border: none; }
-          .btn-primary:hover { background-color: #1e40af; }
-          .nav-tabs > li > a { font-size: 32px; font-weight: 500; color: #1e293b; }
-          .nav-tabs > li.active > a { background-color: #0f172a; color: white; }
-          .tab-content { padding-top: 20px; }
-        ")),
-        tags$style(HTML("
-          .navbar { min-height: 75px; background-color: #219ebc !important; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.2);}
-          .navbar-brand { padding-top: 5px; padding-bottom: 5px;}
-          .navbar-nav > li > a { padding-top: 30px; padding-bottom: 30px; font-size: 18px; font-weight: bold; color: black !important;}
-          .navbar-nav > li > a:hover {background-color: #176087 !important; color: black !important;}
-          .navbar-nav > li.active > a,
-          .navbar-nav > li.active > a:focus,
-          .navbar-nav > li.active > a:hover {background-color: #023047 !important; color: white !important;}
-        "))
-      )
+    # --- Home Tab ---
+    tabPanel("Home",
+             fluidPage(
+               # Title & Value Proposition
+               fluidRow(
+                 column(12,
+                        h2("Discover the Best BTO Locations with Seamless Public Transport Access"),
+                        p("Compare neighborhoods using live and historical data to find the perfect home that fits your lifestyle and daily commute.")
+                 )
+               ),
+               br(),
+               
+               # Feature Preview / Icons + Description
+               fluidRow(
+                 column(3,
+                        icon("map", lib = "font-awesome", style = "font-size: 30px;"),
+                        h5("Heatmap Overview"),
+                        p("Visualize public transport accessibility across regions.")
+                 ),
+                 column(3,
+                        icon("clock", lib = "font-awesome", style = "font-size: 30px;"),
+                        h5("Commute Time Estimator"),
+                        p("Estimate personalized travel times from your potential home.")
+                 ),
+                 column(3,
+                        icon("balance-scale", lib = "font-awesome", style = "font-size: 30px;"),
+                        h5("BTO Comparison"),
+                        p("Compare two neighborhoods side-by-side by accessibility.")
+                 ),
+                 column(3,
+                        icon("chart-line", lib = "font-awesome", style = "font-size: 30px;"),
+                        h5("Transport Insights"),
+                        p("Uncover congestion zones, hotspots, and service gaps.")
+                 )
+               ),
+               br(),
+               
+               # Quick Stats / Infographics (static or reactive)
+               fluidRow(
+                 column(4,
+                        wellPanel(
+                          h4("Top Connected Town"),
+                          p("Tampines"),
+                          icon("train", lib = "font-awesome", style = "color: green; font-size: 20px;")
+                        )
+                 ),
+                 column(4,
+                        wellPanel(
+                          h4("Avg. Travel Time (New Towns)"),
+                          p("42 mins"),
+                          icon("clock", lib = "font-awesome", style = "color: orange; font-size: 20px;")
+                        )
+                 ),
+                 column(4,
+                        wellPanel(
+                          h4("MRT Lines Analyzed"),
+                          p("6"),
+                          icon("subway", lib = "font-awesome", style = "color: blue; font-size: 20px;")
+                        )
+                 )
+               ),
+               br(),
+               
+               # Light Interactive Preview
+               fluidRow(
+                 column(6,
+                        selectInput("quick_region", "Try a Quick Region Check:",
+                                    choices = c("Tampines", "Woodlands", "Punggol", "Jurong East")),
+                        actionButton("view_region", "View Accessibility Summary", icon = icon("search"))
+                 ),
+                 column(6,
+                        verbatimTextOutput("region_summary") # You can later show a simple text or score
+                 )
+               ),
+               br(),
+               
+               # CTA Section
+               fluidRow(
+                 column(12,
+                        tags$div(
+                          style = "background-color: #f5f5f5; padding: 20px; border-radius: 10px; text-align: center;",
+                          h3("Ready to explore your ideal BTO location?"),
+                          actionButton("go_to_map", "Explore Now", class = "btn btn-primary btn-lg")
+                        )
+                 )
+               )
+             )
     ),
     
     ## Tab 1
@@ -255,6 +319,17 @@ shinyUI(
                  )
                )
              )
+    ),
+    header = tagList(
+      useShinyjs(),
+      tags$head(
+        tags$style(HTML("
+          body { font-family: 'Times New Roman', serif; }
+          h1, h2, h3, h4, h5, h6, p, div, span { 
+          font-family: 'Times New Roman', Times, serif;
+          }
+                        ")),
+        )
+      )
     )
-  )
 )

@@ -2,7 +2,7 @@ library(dplyr)
 library(sf)
 
 # ---- Load Required Spatial Data ----
-data_dir <- "../data/RDS Files"
+data_dir <- "data/RDS Files"
 
 planning_areas     <- readRDS(file.path(data_dir, "planning_area_polygons.rds"))
 bus_with_planning  <- readRDS(file.path(data_dir, "bus_with_planning.rds"))

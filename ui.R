@@ -5,15 +5,16 @@ library(dplyr)
 library(plotly)
 library(sf)
 library(scales)
-library(shinyjs)
 library(shiny)
+library(shinyjs)
+library(shinythemes)
 source("global.R") 
 
 shinyUI(
   navbarPage(
     theme = shinytheme("yeti"),
     title = div(
-      img(src = "logo.png", style = "height: 30px"),
+      img(src = "white_logo.png", style = "height: 30px"),
     ),
     id = "mainTabs",
     windowTitle = "Where's My Ride",
@@ -32,25 +33,25 @@ shinyUI(
                fluidRow(
                  column(3, actionLink("go_heatmap", label = tagList(
                    icon("map", lib = "font-awesome", style = "font-size: 28px"),
-                   h5("Transport Heatmap"),
+                   h5("Transport Heatmap", style = "font-weight: bold"),
                    p("See which regions have the highest density of bus stops and MRT stations.")
                  ), style = "text-decoration: none")),
                  
                  column(3, actionLink("go_commute", label = tagList(
                    icon("location-dot", lib = "font-awesome", style = "font-size: 28px"),
-                   h5("Travel Reach & Nearby Transport"),
+                   h5("Travel Reach & Nearby Transport", style = "font-weight: bold"),
                    p("Discover how far you can travel within 15–45 minutes by public transport, and find the nearest bus stops and MRT stations around your location.")
                  ), style = "text-decoration: none")),
                  
                  column(3, actionLink("go_compare", label = tagList(
                    icon("balance-scale", lib = "font-awesome", style = "font-size: 28px"),
-                   h5("BTO Transport Comparison"),
+                   h5("BTO Transport Comparison", style = "font-weight: bold"),
                    p("Compare public transport quality across BTO projects based on commute comfort, efficiency, and accessibility to your destination.")
                  ), style = "text-decoration: none")),
                  
                  column(3, actionLink("go_insights", label = tagList(
                    icon("chart-line", lib = "font-awesome", style = "font-size: 28px"),
-                   h5("Transport Access Dashboard"),
+                   h5("Transport Access Dashboard", style = "font-weight: bold"),
                    p("Get personalized insights into public transport accessibility by postal code. View model-based scores, congestion trends, and identify service gaps near your location.")
                  ), style = "text-decoration: none"))
                ),
@@ -203,10 +204,123 @@ shinyUI(
              )
     ),
     
+    # --- Project Information ---
+    tabPanel("Project Information",
+             fluidPage(
+               
+               # --- Team Members ---
+               h3(tagList(icon("users", lib = "font-awesome"), " Team Members")),
+               
+               fluidRow(
+                 column(2, tags$div(
+                   img(src = "wenwen.jpg", width = "100%", style = "border-radius: 50%;"),
+                   h5("Loo Wen Wen"),
+                   p("Frontend Developer")
+                 )),
+                 column(2, tags$div(
+                   img(src = "khalisah.jpg", width = "100%", style = "border-radius: 50%;"),
+                   h5("Khalisah Binte Shari"),
+                   p("Frontend Developer")
+                 )),
+                 column(2, tags$div(
+                   img(src = "amali.jpg", width = "100%", style = "border-radius: 50%;"),
+                   h5("Mohamed Amali Bin M Akbar"),
+                   p("Frontend Developer")
+                 )),
+                 column(2, tags$div(
+                   img(src = "mili.jpg", width = "100%", style = "border-radius: 50%;"),
+                   h5("Mili Vinod"),
+                   p("Backend Developer")
+                 )),
+                 column(2, tags$div(
+                   img(src = "ryan.jpg", width = "100%", style = "border-radius: 50%;"),
+                   h5("Ryan Chow Yi Feng"),
+                   p("Backend Developer")
+                 )),
+                 column(2, tags$div(
+                   img(src = "jinpeng.jpg", width = "100%", style = "border-radius: 50%;"),
+                   h5("Oon Jin Peng"),
+                   p("Backend Developer")
+                 ))
+               ),
+               br(),
+               
+               # --- Data Sets & APIs ---
+               h3(tagList(icon("database", lib = "font-awesome"), " Data Sets & APIs")),
+               fluidRow(
+                 column(4, tags$div(
+                   img(src = "logo_lta.png", height = "60px", style = "margin-bottom: 10px;"),
+                   p(
+                     tags$b("LTA Data Mall: "),
+                     tags$a(href = "https://datamall.lta.gov.sg/content/datamall/en.html", 
+                            "Official Portal", target = "_blank"),
+                     br(),
+                     "Provides access to MRT station locations, bus stop coordinates, and public transport routes through both real-time APIs and static datasets."
+                   ))
+                 ),
+                 
+                 column(4, tags$div(
+                   img(src = "logo_hdb.png", height = "60px", style = "margin-bottom: 10px;"),
+                   p(
+                     tags$b("Housing Development Board: "),
+                     tags$a(href = "https://homes.hdb.gov.sg/home/landing", 
+                            "HDB Flat Portal", target = "_blank"),
+                     br(),
+                     "Used to extract information on upcoming BTO projects featured in the application."
+                   ))
+                 ),
+                 
+                 column(4, tags$div(
+                   img(src = "logo_onemap.png", height = "60px", style = "margin-bottom: 10px;"),
+                   p(
+                     tags$b("OneMap API: "),
+                     tags$a(href = "https://www.onemap.gov.sg/apidocs/", 
+                            "OneMap API Documentation", target = "_blank"),
+                     br(),
+                     "Extensively used for its API functionalities including route planning, reverse geocoding, and retrieving planning area boundaries."
+                   ))
+                 )),
+               br(),
+               
+               # --- Repository ---
+               h3(tagList(icon("laptop", lib = "font-awesome"), " Repository & Contact")),
+               p("This project is open source and the full source code is available on GitHub. You can also explore the live app online."),
+               
+               tags$ul(
+                 tags$li(
+                   tags$b(tagList(icon("github", lib = "font-awesome"), " GitHub Repository:")),
+                   tags$a(href = "https://github.com/loowenwen/wheresmyride", 
+                          "View on GitHub", target = "_blank")
+                 ),
+                 tags$li(
+                   tags$b(tagList(icon("external-link-alt", lib = "font-awesome"), " Live App (shinyapps.io):")),
+                   tags$a(href = "https://loowenwen.shinyapps.io/wheresmyride/", 
+                          "Launch Where's My Ride", target = "_blank")
+                 )
+               ),
+               br(),
+               
+               # --- Academic Acknowledgement ---
+               fluidRow(
+                 column(12, 
+                        tags$div(style = "background-color: #e9f0f5; padding: 10px; text-align: center;",
+                                 h4(tagList(icon("university", lib = "font-awesome"), " Academic Acknowledgement")),
+                                 p("This project was developed as part of the course"),
+                                 p("DSE3101 - Practical Data Science for Economics", style = "font-weight: bold"), 
+                                 p("National University of Singapore (NUS), Faculty of Science"),
+                                 p("Academic Year 2024/25, Semester 2")
+                                 ))
+               )
+             )
+    ),
+    
     # --- Global UI Settings ---
     header = tagList(
       useShinyjs(),
-      tags$head(tags$style(HTML("body { font-family: 'Times New Roman', serif; } h1, h2, h3, h4, h5, h6, p, div, span { font-family: 'Times New Roman', Times, serif; }")))
+      tags$head(
+        tags$style(HTML("body { font-family: 'Times New Roman', serif; } 
+                        h1, h2, h3, h4, h5, h6, p, div, span { font-family: 'Times New Roman', Times, serif; }")),
+        )
     )
   )
 )

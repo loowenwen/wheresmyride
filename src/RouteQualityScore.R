@@ -615,7 +615,18 @@ print(results_2$summary)
 
 
 
-##RQS individual score functions codes
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Function to get station crowd density forecast
 get_station_crowd_forecast <- function(train_line, api_key) {
@@ -672,203 +683,5 @@ print(crowd_summary)
 crowd_data$Stations[[1]]$Interval[[1]]
 
 
-#total distance/speed 
-combined_transport_efficiency <- function(routes) {
-  # Initialize vector to store transport scores
-  transport_scores <- numeric(length(routes))
-  
-  # Loop through all routes
-  for (i in 1:length(routes$duration)) {
-    # Safely extract duration and convert to hours
-    duration_hours <- routes$duration[[i]] / 3600
-    
-    # Calculate total distance from all legs (in meters)
-    total_distance <- sum(routes$legs[[i]]$distance)
-    
-    # Calculate speed in km/h (using total distance)
-    speed <- (total_distance / 1000) / duration_hours
-    
-    # Normalize speed score (0-100)
-    max_speed <- 50  # km/h 
-    min_speed <- 3    # km/h
-    
-    transport_scores[i] <- 100 * (speed - min_speed) / (max_speed - min_speed)
-    transport_scores[i] <- max(0, min(100, transport_scores[i]))  # Clamp between 0-100
-  }
-  
-  # Handle case where no valid scores were calculated
-  if (all(is.na(transport_scores))) return(0)
-  
-  # Combine scores with weighting
-  sorted_scores <- sort(transport_scores, decreasing = TRUE)
-  
-  # Weighted components
-  best_score <- sorted_scores[1] * 0.8
-  second_best <- sorted_scores[2] * 0.1
-  worst <- sorted_scores[3] * 0.1
-  
-  return(best_score + second_best + worst)
-}
-
-combined_transport_efficiency(routes)
-
-
-#comfort score - penalise transfers and walking time
-calculate_comfort_score <- function(routes_metrics) {
-  # Initialize comfort scores vector
-  comfort_scores <- numeric(nrow(routes_metrics))
-  
-  for (i in 1:nrow(routes_metrics)) {
-    # Extract metrics for current route
-    current_route <- routes_metrics[i, ]
-    
-    # Penalize transfers (more transfers = less comfort)
-    transfers_penalty <- current_route$transfers * 15  # Each transfer reduces score by 15 points
-    
-    # Penalize walking time (longer walks = less comfort)
-    walk_penalty <- current_route$walkTime * 2  # Each minute of walking reduces score by 2 points
-    
-    # Base comfort score (starting from 100)
-    comfort_score <- 100 - transfers_penalty - walk_penalty
-    
-    # Ensure score is within 0-100 range
-    comfort_score <- max(0, min(100, comfort_score))
-    
-    comfort_scores[i] <- comfort_score
-  }
-  
-  # Calculate overall comfort score (weighted average favoring best route)
-  sorted_comfort <- sort(comfort_scores, decreasing = TRUE)
-  overall_comfort <- sorted_comfort[1] * 0.7 + mean(sorted_comfort) * 0.3
-  
-  return(overall_comfort)
-}
-
-calculate_comfort_score(routes_metrics)
-
-#Robustness
-calculate_robustness_score <- function(route_sequences, routes) {
-  # Initialize base score (100 = perfectly robust)
-  base_score <- 100
-  score <- base_score
-  
-  # Extract transport nodes (exclude Origin/Destination)
-  transport_nodes <- lapply(route_sequences, function(x) {
-    x[!x %in% c("Origin", "Destination")] 
-  })
-  
-  # Single Point of Failure Penalty (SPFP)
-  common_nodes <- Reduce(intersect, transport_nodes)
-  N <- length(common_nodes)
-  spof_penalty <- length(common_nodes) * 15  # Single Point of Failure penalty
-  score <- score - spof_penalty
-  
-  # Mode Diversity Analysis
-  modes <- lapply(routes$legs, function(legs) {
-    unique(legs$mode[legs$mode != "WALK"])  # Exclude "WALK" mode
-  })
-  
-  #Hybrid Bonus (+20 if any route uses both bus and rail)
-  has_hybrid <- any(sapply(modes, function(m) "BUS" %in% m && any(c("SUBWAY", "RAIL") %in% m)))
-  if (has_hybrid) {
-    score <- score + 20  # Hybrid bonus for bus + rail
-  }
-  
-  #Single-Mode Penalty (-25 if all routes use the same mode type)
-  all_modes <- unique(unlist(modes))
-  if (length(all_modes) == 1) {
-    score <- score - 25  # Single-mode penalty
-  }
-  
-  #Reward for Routes Being Completely Different
-  # Check if any two routes are completely different
-  route_combinations <- combn(length(transport_nodes), 2)
-  completely_different_reward <- 0
-  
-  for (i in 1:ncol(route_combinations)) {
-    route1 <- transport_nodes[[route_combinations[1, i]]]
-    route2 <- transport_nodes[[route_combinations[2, i]]]
-    
-    # If routes have no common nodes, they are considered "completely different"
-    if (length(intersect(route1, route2)) == 0) {
-      completely_different_reward <- completely_different_reward + 10  # Reward for complete difference
-    }
-  }
-  
-  # Apply reward for complete differences
-  min_score <- 0
-  max_score <- 150 # the system's highest possible score
-  
-  # Normalize the score between 0 and 100
-  normalized_score <- (score - min_score) / (max_score - min_score) * 100
-  
-  # Return the final score
-  return(normalized_score)
-}
-
-
-
-#SERVICE QUALITY - using bus frequency
-calculate_route_options_service_quality <- function(routes, departure_time, analyzer) {
-  # Calculate scores for all available routes (up to 3)
-  route_scores <- sapply(1:length(routes$legs), function(i) {
-    # Extract bus numbers for this route
-    bus_numbers <- na.omit(routes$legs[[i]]$route[nzchar(routes$legs[[i]]$route) & 
-                                                    routes$legs[[i]]$mode == "BUS"])
-    
-    if (length(bus_numbers) == 0) return(0)  # No buses in this route
-    
-    # Get frequency data
-    freq_data <- lapply(bus_numbers, function(bus_no) analyzer$get_service_frequency(bus_no))
-    freq_data <- freq_data[!sapply(freq_data, is.null)]
-    if (length(freq_data) == 0) return(0)
-    
-    # Determine time period (same for all routes)
-    time_parts <- as.numeric(strsplit(departure_time, ":")[[1]])
-    departure_min <- time_parts[1] * 60 + time_parts[2]
-    
-    time_period <- if (departure_min >= 6.5*60 && departure_min < 8.5*60) {
-      "AM_Peak"
-    } else if (departure_min >= 17*60 && departure_min < 19*60) {
-      "PM_Peak"
-    } else if (departure_min >= 6.5*60 && departure_min < 17*60) {
-      "AM_Offpeak"
-    } else {
-      "PM_Offpeak"
-    }
-    
-    # Calculate combined wait time for this route
-    avg_waits <- sapply(freq_data, function(x) x[[time_period]]$avg)
-    avg_waits <- avg_waits[!is.na(avg_waits)]
-    if (length(avg_waits) == 0) return(0)
-    
-    1 / mean(1 / avg_waits)  # Returns combined wait time for this route
-  })
-  
-  # Convert wait times to scores
-  route_scores <- sapply(route_scores, function(wait) {
-    case_when(
-      wait <= 5  ~ 90,
-      wait <= 8  ~ 75,
-      wait <= 12 ~ 60,
-      TRUE       ~ 40
-    )
-  })
-  
-  # Handle cases with <3 routes
-  if (length(route_scores) == 1) {
-    return(route_scores[1])
-  } 
-  
-  # Sort scores in descending order
-  sorted_scores <- sort(route_scores, decreasing = TRUE)
-  
-  # Your exact requested weighting
-  final_score <- 0.6 * sorted_scores[1] +  # Best route
-    0.3 * sorted_scores[2] +  # Second-best
-    0.1 * sorted_scores[min(3, length(sorted_scores))]  # Worst
-  
-  max(0, min(100, round(final_score)))
-}
 
 

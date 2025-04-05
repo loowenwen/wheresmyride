@@ -138,9 +138,8 @@ shinyUI(
                )
     ),
     
-      
-    
-    tabPanel("Comparing Transport Accessibility", value = "compare",
+    # --- BTO Transport Comparison ---
+    tabPanel("BTO Transport Comparison", value = "compare",
              sidebarLayout(
                sidebarPanel(style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
                             selectInput("bto_a_postal", "Select BTO A:", choices = c("Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)", "Geylang Meadow (389001)", "Queenstown Beacon (149752)")),
@@ -161,7 +160,8 @@ shinyUI(
              )
     ),
     
-    tabPanel("Accessibility Analysis", style = "margin-top: 15px;",
+    # --- BTO Transport Comparison ---
+    tabPanel("Transport Access Dashboard", value = "insights",
              sidebarLayout(
                sidebarPanel(style = "background-color: #F8F9FA; font-family: 'Times New Roman', serif; color: #023047;",
                             h4("User Inputs", style = "font-size: 18px; font-weight: bold;"),
@@ -177,7 +177,7 @@ shinyUI(
                mainPanel(
                  div(id = "nestedTabs",
                      tabsetPanel(
-                       tabPanel("Accessibility Score", value = "insights",
+                       tabPanel("Accessibility Score",
                                 div(class = "score-section", style = "font-family: 'Times New Roman', serif; color: #023047;",
                                     h3("Overall Accessibility Score", style = "font-size: 24px; font-weight: bold;"),
                                     uiOutput("t2_dynamic_score_display"),
@@ -203,6 +203,7 @@ shinyUI(
              )
     ),
     
+    # --- Global UI Settings ---
     header = tagList(
       useShinyjs(),
       tags$head(tags$style(HTML("body { font-family: 'Times New Roman', serif; } h1, h2, h3, h4, h5, h6, p, div, span { font-family: 'Times New Roman', Times, serif; }")))

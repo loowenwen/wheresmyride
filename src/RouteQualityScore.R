@@ -1,67 +1,69 @@
-##Crowd density - factors in the crowdness level of train involved
-#get_crowd_density_score <- function(routes, lta_api_key) {
-  # Initialize list to store scores for all routes
-  route_crowd_scores <- list()
-  
-  # Process each route (typically 3 alternatives)
-  for (i in seq_along(routes$legs)) {
-    legs <- routes$legs[[i]]
-    crowd_scores <- numeric(0)
-    in_train_segment <- FALSE
-    
-    # Analyze each leg of the current route
-    for (j in seq_along(legs$mode)) {
-      current_mode <- legs$mode[j]
-      
-      # Detect start of new train segment
-      if (!in_train_segment && current_mode == "SUBWAY" && !is.na(legs$route[j])) {
-        in_train_segment <- TRUE
-        train_line <- legs$route[j]
-        station_code <- sub(".*:", "", legs$from$stopCode[j])  # Corrected from stopId to stopCode
-        
-        # API call for this station's crowd
-        response <- GET(
-          "https://datamall2.mytransport.sg/ltaodataservice/PCDForecast",
-          add_headers(AccountKey = lta_api_key),
-          query = list(TrainLine = train_line)
-        )
-        
-        if (status_code(response) == 200) {
-          forecast <- fromJSON(content(response, "text"))$value
-          station_data <- forecast[forecast$Station == station_code, ]
-          
-          if (nrow(station_data) > 0) {
-            latest <- tail(station_data, 1)
-            crowd_scores <- c(crowd_scores, 
-                              case_when(
-                                latest$CrowdLevel == "l" ~ 90,  # Low
-                                latest$CrowdLevel == "m" ~ 60,  # Moderate
-                                latest$CrowdLevel == "h" ~ 30,  # High
-                                TRUE ~ 50  # Default for NA/unexpected
-                              ))
-          }
-        }
-      }
-      
-      # Reset at non-train segments
-      if (current_mode != "SUBWAY") {
-        in_train_segment <- FALSE
-      }
-    }
-    
-    # Store score for this route (100 if no trains)
-    route_crowd_scores[[i]] <- ifelse(length(crowd_scores) == 0, 100, mean(crowd_scores))
-  }
-  
-  # Return scores for all routes
-  unlist(route_crowd_scores)
-}
-#get_crowd_density_score(routes, "o6OuJxI3Re+qYgFQzb+4+w==")
-
 library(httr)
 library(jsonlite)
 library(dplyr)
 library(purrr)
+library(httr)
+library(jsonlite)
+  
+
+#conver postal to lat and long
+get_coordinates_from_postal <- function(postal_code) {
+    # Authenticate with OneMap API
+    auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
+    email <- "loowenwen1314@gmail.com"
+    password <- "sochex-6jobge-fomsYb"
+    
+    auth_body <- list(email = email, password = password)
+    
+    auth_response <- POST(
+      url = auth_url,
+      body = auth_body,
+      encode = "json"
+    )
+    
+    if (status_code(auth_response) != 200) {
+      stop(paste("Authentication failed with status:", status_code(auth_response)))
+    }
+    
+    # Get token from response
+    token <- content(auth_response, as = "parsed")$access_token
+    
+    # Search API endpoint
+    base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+    
+    # Construct request URL
+    request_url <- paste0(base_url, 
+                          "?searchVal=", postal_code,
+                          "&returnGeom=Y",
+                          "&getAddrDetails=Y")
+    
+    # Make API request
+    search_response <- GET(
+      url = request_url,
+      add_headers(Authorization = token)
+    )
+    
+    if (status_code(search_response) != 200) {
+      stop(paste("Search failed with status:", status_code(search_response)))
+    }
+    
+    # Parse response
+    result <- content(search_response, as = "text", encoding = "UTF-8")
+    data <- fromJSON(result)
+    
+    if (data$found == 0) {
+      stop("No results found for this postal code")
+    }
+    
+    # Extract first result (most relevant)
+    first_result <- data$results[1, ]
+    
+    # Format as "lat,long" string
+    coords_string <- paste0(first_result$LATITUDE, ",", first_result$LONGITUDE)
+    
+    return(coords_string)
+  }
+  
 
 RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                              public = list(
@@ -110,7 +112,6 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    # Extract and print itineraries
                                    if ("plan" %in% names(data) && "itineraries" %in% names(data$plan)) {
                                      itineraries <- data$plan$itineraries
-                                     print(itineraries)  # Print the extracted itineraries
                                      return(itineraries)
                                    } else {
                                      print("Itineraries not found in the response.")
@@ -122,8 +123,9 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  }
                                },
                                
+                        
                                generate_all_route_sequences = function(api_response) {
-                                 # Initialize list to store all route sequences
+                                 
                                  all_sequences <- list()
                                  
                                  # Process each route in the api_response
@@ -151,7 +153,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      
                                      # Check for valid intermediate stops
                                      if (current_mode != "WALK") {
-                                       max_checks <- 3  # Maximum number of subsequent stops to check
+                                       max_checks <- 3  
                                        checks_done <- 0
                                        
                                        while (checks_done < max_checks) {
@@ -174,7 +176,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                            }
                                          }
                                          
-                                         # If we get here, the current intermediate wasn't valid - try next one
+                                         
                                          intermediate_index <- intermediate_index + 1
                                          checks_done <- checks_done + 1
                                        }
@@ -241,7 +243,6 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      # Extract numbers and determine direction
                                      numbers <- as.numeric(gsub("\\D", "", seg$stops))
                                      
-                                     # Check if already in order
                                      if (all(diff(numbers) > 0)) next  # Already increasing
                                      if (all(diff(numbers) < 0)) next  # Already decreasing
                                      
@@ -276,19 +277,15 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                },
                                
                                combined_transport_efficiency = function(routes) {
-                                 # Initialize vector to store transport scores
+                              
                                  transport_scores <- numeric(length(routes))
                                  
                                  # Loop through all routes
                                  for (i in 1:length(routes$duration)) {
-                                   # Safely extract duration and convert to hours
+                                   
                                    duration_hours <- routes$duration[[i]] / 3600
-                                   
-                                   # Calculate total distance from all legs (in meters)
                                    total_distance <- sum(routes$legs[[i]]$distance)
-                                   
-                                   # Calculate speed in km/h (using total distance)
-                                   speed <- (total_distance / 1000) / duration_hours
+                                   speed <- (total_distance / 1000) / duration_hours #km/h 
                                    
                                    # Normalize speed score (0-100)
                                    max_speed <- 50  # km/h 
@@ -343,59 +340,49 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                },
                                
                                calculate_robustness_score = function(route_sequences, routes) {
-                                 # Initialize base score (100 = perfectly robust)
-                                 base_score <- 100
-                                 score <- base_score
-                                 
-                                 # Extract transport nodes (exclude Origin/Destination)
+                                 # Component 1: Route Independence (0-40 points)
                                  transport_nodes <- lapply(route_sequences, function(x) {
                                    x[!x %in% c("Origin", "Destination")] 
                                  })
                                  
-                                 # Single Point of Failure Penalty (SPFP)
-                                 common_nodes <- Reduce(intersect, transport_nodes)
-                                 N <- length(common_nodes)
-                                 spof_penalty <- length(common_nodes) * 15  # Single Point of Failure penalty
-                                 score <- score - spof_penalty
-                                 
-                                 # Mode Diversity Analysis
-                                 modes <- lapply(routes$legs, function(legs) {
-                                   unique(legs$mode[legs$mode != "WALK"])  # Exclude "WALK" mode
+                                 # Calculate overlap between all route pairs
+                                 route_pairs <- combn(length(transport_nodes), 2, simplify = FALSE)
+                                 overlap_scores <- sapply(route_pairs, function(pair) {
+                                   length(intersect(transport_nodes[[pair[1]]], transport_nodes[[pair[2]]]))
                                  })
                                  
-                                 # Hybrid Bonus (+20 if any route uses both bus and rail)
-                                 has_hybrid <- any(sapply(modes, function(m) "BUS" %in% m && any(c("SUBWAY", "RAIL") %in% m)))
-                                 if (has_hybrid) {
-                                   score <- score + 20  # Hybrid bonus for bus + rail
+                                 route_independence <- 40 * (1 - mean(overlap_scores/max(sapply(transport_nodes, length))))
+                                 
+                                 # Component 2: Mode Diversity (0-30 points)
+                                 modes <- lapply(routes$legs, function(legs) {
+                                   unique(legs$mode[legs$mode != "WALK"])
+                                 })
+                                 unique_modes <- unique(unlist(modes))
+                                 
+                                 mode_diversity <- if(length(unique_modes) == 0) {
+                                   0
+                                 } else {
+                                   30 * (length(unique_modes)/2) # Max 2 points per unique mode type
                                  }
                                  
-                                 # Single-Mode Penalty (-25 if all routes use the same mode type)
-                                 all_modes <- unique(unlist(modes))
-                                 if (length(all_modes) == 1) {
-                                   score <- score - 25  # Single-mode penalty
-                                 }
+                                 # Component 3: Hybrid Route Bonus (0-20 points)
+                                 has_hybrid <- any(sapply(modes, function(m) {
+                                   "BUS" %in% m && any(c("SUBWAY", "RAIL") %in% m)
+                                 }))
+                                 hybrid_bonus <- ifelse(has_hybrid, 20, 0)
                                  
-                                 # Reward for Routes Being Completely Different
-                                 route_combinations <- combn(length(transport_nodes), 2)
-                                 completely_different_reward <- 0
+                                 # Component 4: Failure Resistance (0-10 points)
+                                 common_nodes <- Reduce(intersect, transport_nodes)
+                                 failure_resistance <- 10 * (1 - length(common_nodes)/max(sapply(transport_nodes, length)))
                                  
-                                 for (i in 1:ncol(route_combinations)) {
-                                   route1 <- transport_nodes[[route_combinations[1, i]]]
-                                   route2 <- transport_nodes[[route_combinations[2, i]]]
-                                   
-                                   if (length(intersect(route1, route2)) == 0) {
-                                     completely_different_reward <- completely_different_reward + 10
-                                   }
-                                 }
+                                 # Sum components (automatically capped at 100)
+                                 robustness_score <- min(100, 
+                                                         route_independence + 
+                                                           mode_diversity + 
+                                                           hybrid_bonus + 
+                                                           failure_resistance)
                                  
-                                 # Apply reward for complete differences
-                                 min_score <- 0
-                                 max_score <- 150
-                                 
-                                 # Normalize the score between 0 and 100
-                                 normalized_score <- (score - min_score) / (max_score - min_score) * 100
-                                 
-                                 return(normalized_score)
+                                 return(round(robustness_score))
                                },
                                
                                calculate_route_options_service_quality = function(routes, departure_time) {
@@ -507,6 +494,54 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    weights = weights,
                                    weighted_scores = weighted_scores
                                  )
+                               },
+                               
+                               #convert to coords
+                               convert_to_coords = function(location) {
+                                 if (grepl("^\\d{6}$", location)) {
+                                   return(get_coordinates_from_postal(location))
+                                 }
+                                 return(location)
+                               },
+                               
+                               
+                               calculate_multiple_rqs = function(starts, end, date, time, maxWalkDistance = 1000,
+                                                                 weights = c(transport = 0.25, comfort = 0.25, 
+                                                                             robustness = 0.25, service = 0.25)) {
+                                 
+                                 # Process all start points
+                                 start_coords <- sapply(starts, convert_to_coords)
+                                 end_coord <- convert_to_coords(end)
+                                 
+                                 # Calculate RQS for each start point
+                                 results <- lapply(start_coords, function(start) {
+                                   self$calculate_rqs(
+                                     start = start,
+                                     end = end_coord,
+                                     date = date,
+                                     time = time,
+                                     maxWalkDistance = maxWalkDistance,
+                                     weights = weights
+                                   )
+                                 })
+                                 
+                                 # Create summary table
+                                 summary_table <- data.frame(
+                                   Start = starts,
+                                   RQS = sapply(results, function(x) x$rqs),
+                                   Transport = sapply(results, function(x) x$components["transport"]),
+                                   Comfort = sapply(results, function(x) x$components["comfort"]),
+                                   Robustness = sapply(results, function(x) x$components["robustness"]),
+                                   Service = sapply(results, function(x) x$components["service"]),
+                                   stringsAsFactors = FALSE
+                                 )
+                                 
+                                 
+                                 # Return both detailed results and summary
+                                 list(
+                                   all_results = results,
+                                   summary = summary_table
+                                 )
                                }
                              ),
                              
@@ -529,10 +564,6 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
 )
 
 
-
-
-
-
 # Initialize with your OneMap credentials and bus analyzer
 route_analyzer <- RouteAnalyzer$new(
   email = "loowenwen1314@gmail.com",
@@ -540,18 +571,28 @@ route_analyzer <- RouteAnalyzer$new(
   analyzer = bus_analyzer # Your initialized BusAnalyzer instance
 )
 
-result <- route_analyzer$calculate_rqs(
-  start = "1.30374,103.83214",
-  end = "1.294178,103.7698", 
-  date = "03-24-2025",  # Note: format should be "YYYY-MM-DD"
-  time = "07:35:00"       # Just hours:minutes, no seconds
+#calculate RQS with the equal weights on all components
+results <- route_analyzer$calculate_multiple_rqs(
+  starts = c("520702", "551234", "528523"),  # Postal codes
+  end = "118420",                            # Single destination
+  date = "03-24-2025",
+  time = "07:35:00"
+)
+print(results$summary)  # Summary table of all routes
+
+
+#calculate RQS with user chosen weights
+results_2 <- route_analyzer$calculate_multiple_rqs(
+  starts = c("520702", "551234", "528523"),  # Postal codes
+  end = "118420",                            # Single destination
+  date = "03-24-2025",
+  time = "07:35:00",
+  weights = c(transport_efficiency = 0.40, comfort = 0.10, 
+              robustness = 0.25, service = 0.25)
 )
 
-##to get RQS 
-print(result$rqs)  
+print(results_2$summary)
 
-##to get individual scores of RQS
-print(result$components)
 
 
 
@@ -575,6 +616,61 @@ print(result$components)
 
 
 ##RQS individual score functions codes
+
+# Function to get station crowd density forecast
+get_station_crowd_forecast <- function(train_line, api_key) {
+  # API endpoint
+  url <- "https://datamall2.mytransport.sg/ltaodataservice/PCDForecast"
+  
+  # Make API request
+  response <- GET(
+    url = url,
+    add_headers(AccountKey = api_key),
+    query = list(TrainLine = train_line)
+  )
+  
+  # Check response status
+  if (status_code(response) == 200) {
+    # Parse JSON response
+    content <- content(response, as = "text", encoding = "UTF-8")
+    data <- fromJSON(content)
+    
+    # Convert to data frame
+    df <- as.data.frame(data)
+    
+    # Clean up column names
+    names(df) <- gsub("^value\\.", "", names(df))
+    
+    return(df)
+  } else {
+    stop(paste("API request failed with status code:", status_code(response)))
+  }
+}
+
+# Your LTA DataMall API key (replace with your actual key)
+api_key <- "o6OuJxI3Re+qYgFQzb+4+w=="  # Get this from LTA DataMall
+
+# Example usage for North-South Line
+train_line <- "NSL"  # Can change to "EWL", "DTL", etc.
+
+# Get the forecast data
+crowd_data <- get_station_crowd_forecast(train_line, api_key)
+
+# View the first few rows
+head(crowd_data)
+
+# Create a summary table by station
+library(dplyr)
+crowd_summary <- crowd_data %>%
+  group_by(Station, CrowdLevel) %>%
+  summarise(Count = n(), .groups = "drop") %>%
+  arrange(Station, CrowdLevel)
+
+# View the summary
+print(crowd_summary)
+#get NS1
+crowd_data$Stations[[1]]$Interval[[1]]
+
 
 #total distance/speed 
 combined_transport_efficiency <- function(routes) {
@@ -774,4 +870,5 @@ calculate_route_options_service_quality <- function(routes, departure_time, anal
   
   max(0, min(100, round(final_score)))
 }
+
 

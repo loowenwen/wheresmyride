@@ -11,12 +11,14 @@ source("global.R")
 
 shinyUI(
   navbarPage(
-    theme = shinytheme("flatly"),
+    theme = shinytheme("yeti"),
     title = div(
       img(src = "logo.png", style = "height: 30px"),
     ),
     id = "mainTabs",
+    windowTitle = "Where's My Ride",
     
+    # --- Home Tab ---
     tabPanel("Home",
              fluidPage(
                fluidRow(
@@ -29,83 +31,87 @@ shinyUI(
               
                fluidRow(
                  column(3, actionLink("go_heatmap", label = tagList(
-                   icon("map", lib = "font-awesome"), h5("Heatmap Overview"),
-                   p("Visualize public transport accessibility across regions.")
-                 ), style = "text-decoration: none;")),
+                   icon("map", lib = "font-awesome", style = "font-size: 28px"),
+                   h5("Transport Heatmap"),
+                   p("See which regions have the highest density of bus stops and MRT stations.")
+                 ), style = "text-decoration: none")),
+                 
                  column(3, actionLink("go_commute", label = tagList(
-                   icon("clock", lib = "font-awesome", style = "font-size: 30px;"), h5("Commute Time Estimator"),
-                   p("Estimate personalized travel times from your potential home.")
-                 ), style = "text-decoration: none;")),
+                   icon("location-dot", lib = "font-awesome", style = "font-size: 28px"),
+                   h5("Travel Reach & Nearby Transport"),
+                   p("Discover how far you can travel within 15–45 minutes by public transport, and find the nearest bus stops and MRT stations around your location.")
+                 ), style = "text-decoration: none")),
+                 
                  column(3, actionLink("go_compare", label = tagList(
-                   icon("balance-scale", lib = "font-awesome"), h5("BTO Comparison"),
-                   p("Compare two neighborhoods side-by-side by accessibility.")
-                 ), style = "text-decoration: none;")),
+                   icon("balance-scale", lib = "font-awesome", style = "font-size: 28px"),
+                   h5("BTO Transport Comparison"),
+                   p("Compare public transport quality across BTO projects based on commute comfort, efficiency, and accessibility to your destination.")
+                 ), style = "text-decoration: none")),
+                 
                  column(3, actionLink("go_insights", label = tagList(
-                   icon("chart-line", lib = "font-awesome"), h5("Transport Insights"),
-                   p("Uncover congestion zones, hotspots, and service gaps.")
-                 ), style = "text-decoration: none;"))
+                   icon("chart-line", lib = "font-awesome", style = "font-size: 28px"),
+                   h5("Transport Access Dashboard"),
+                   p("Get personalized insights into public transport accessibility by postal code. View model-based scores, congestion trends, and identify service gaps near your location.")
+                 ), style = "text-decoration: none"))
                ),
                br(),
                
                fluidRow(
                  column(12,
-                        h4("Explore Upcoming BTO Projects on the Map"),
-                        p("Zoom in to see new housing projects and nearby transport nodes."),
-                        leafletOutput("bto_map", height = "400px")
+                        h3("Explore Upcoming BTO Projects and Transport Connectivity"),
+                        p("Discover new BTO launches and examine their accessibility to nearby MRT stations and bus stops. Use the interactive map below to zoom into each estate and visualize surrounding transport nodes."),
+                        leafletOutput("bto_map", height = "400px"),
                  )
                ),
                br(),
                
                fluidRow(
-                 column(4, wellPanel(h4("Top Connected Town"), p("Tampines"), icon("train", lib = "font-awesome"))),
-                 column(4, wellPanel(h4("Avg. Travel Time (New Towns)"), p("42 mins"), icon("clock", lib = "font-awesome"))),
-                 column(4, wellPanel(h4("MRT Lines Analyzed"), p("6"), icon("subway", lib = "font-awesome")))
-               ),
-               br(),
-               
-               fluidRow(
-                 column(12, tags$div(style = "background-color: #f5f5f5; padding: 20px; border-radius: 10px; text-align: center;",
+                 column(12, tags$div(style = "background-color: #e9f0f5; padding: 10px; text-align: center;",
                                      h3("Ready to explore your ideal BTO location?"),
                                      actionButton("go_to_map", "Explore Now", class = "btn btn-primary btn-lg")))
                )
              )
     ),
     
-    tabPanel("Overview", value = "heatmap",
-             div(style = "height: 100vh; display: flex; flex-direction: column;",
-                 fluidRow(style = "flex-grow: 1;",
-                          column(6,
-                                 div(style = "display: flex; flex-direction: column; height: 100%;",
-                                     sidebarLayout(
-                                       sidebarPanel(style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px; height: 250px; flex-shrink: 0;",
-                                                    textInput("postal_code", "Enter Postal Code", value = "", placeholder = "e.g., 123456"),
-                                                    sliderInput("search_radius", "Search Radius (meters)", min = 100, max = 2000, value = 500, step = 100),
-                                                    actionButton("search_location", "Search", class = "btn-primary", style = "width: 100%;"),
-                                                    h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
-                                                    verbatimTextOutput("location_summary")
-                                       ),
-                                       mainPanel(style = "flex-grow: 1; display: flex;",
-                                                 div(style = "flex-grow: 1; position: relative;", leafletOutput("location_map", height = "700px"))
+    # --- Explore ---
+    navbarMenu("Explore",
+      tabPanel("Overview", value = "heatmap",
+               div(style = "height: 100vh; display: flex; flex-direction: column;",
+                   fluidRow(style = "flex-grow: 1;",
+                            column(6,
+                                   div(style = "display: flex; flex-direction: column; height: 100%;",
+                                       sidebarLayout(
+                                         sidebarPanel(style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px; height: 250px; flex-shrink: 0;",
+                                                      textInput("postal_code", "Enter Postal Code", value = "", placeholder = "e.g., 123456"),
+                                                      sliderInput("search_radius", "Search Radius (meters)", min = 100, max = 2000, value = 500, step = 100),
+                                                      actionButton("search_location", "Search", class = "btn-primary", style = "width: 100%;"),
+                                                      h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
+                                                      verbatimTextOutput("location_summary")
+                                         ),
+                                         mainPanel(style = "flex-grow: 1; display: flex;",
+                                                   div(style = "flex-grow: 1; position: relative;", leafletOutput("location_map", height = "700px"))
+                                         )
                                        )
-                                     )
-                                 )
-                          ),
-                          column(6,
-                                 div(style = "display: flex; flex-direction: column; height: 100%;",
-                                     div(style = "margin-bottom: 10px; height: 80px; flex-shrink: 0;",
-                                         selectInput("density_map_type", "Density Map of:", choices = c("MRT Stations" = "mrt", "Bus Stops" = "bus"))
-                                     ),
-                                     div(style = "flex-grow: 1; position: relative;",
-                                         conditionalPanel(condition = "input.density_map_type == 'mrt'",
-                                                          leafletOutput("mrt_station_density_map", height = "610px")),
-                                         conditionalPanel(condition = "input.density_map_type == 'bus'",
-                                                          leafletOutput("bus_stop_density_map", height = "610px"))
-                                     )
-                                 )
-                          )
-                 )
-             )
-    ),
+                                   )
+                            ),
+                            column(6,
+                                   div(style = "display: flex; flex-direction: column; height: 100%;",
+                                       div(style = "margin-bottom: 10px; height: 80px; flex-shrink: 0;",
+                                           selectInput("density_map_type", "Density Map of:", choices = c("MRT Stations" = "mrt", "Bus Stops" = "bus"))
+                                       ),
+                                       div(style = "flex-grow: 1; position: relative;",
+                                           conditionalPanel(condition = "input.density_map_type == 'mrt'",
+                                                            leafletOutput("mrt_station_density_map", height = "610px")),
+                                           conditionalPanel(condition = "input.density_map_type == 'bus'",
+                                                            leafletOutput("bus_stop_density_map", height = "610px"))
+                                       )
+                                   )
+                            )
+                   )
+               )
+      )
+      ),
+      
     
     tabPanel("Comparing Transport Accessibility", value = "compare",
              sidebarLayout(

@@ -323,5 +323,8 @@ shinyServer(function(input, output, session) {
   observeEvent(input$go_insights, {
     updateTabsetPanel(session, "mainTabs", selected = "insights")
   })
+  observeEvent(input$go_to_map, {
+    updateTabsetPanel(session, "mainTabs", selected = "commute")
+  })
   
 })

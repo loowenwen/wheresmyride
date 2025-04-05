@@ -758,6 +758,7 @@ calculate_route_options_service_quality <- function(routes, departure_time, anal
       TRUE       ~ 40
     )
   })
+  
   # Handle cases with <3 routes
   if (length(route_scores) == 1) {
     return(route_scores[1])

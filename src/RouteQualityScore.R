@@ -4,66 +4,66 @@ library(dplyr)
 library(purrr)
 library(httr)
 library(jsonlite)
-  
+
 
 #conver postal to lat and long
 get_coordinates_from_postal <- function(postal_code) {
-    # Authenticate with OneMap API
-    auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
-    email <- "loowenwen1314@gmail.com"
-    password <- "sochex-6jobge-fomsYb"
-    
-    auth_body <- list(email = email, password = password)
-    
-    auth_response <- POST(
-      url = auth_url,
-      body = auth_body,
-      encode = "json"
-    )
-    
-    if (status_code(auth_response) != 200) {
-      stop(paste("Authentication failed with status:", status_code(auth_response)))
-    }
-    
-    # Get token from response
-    token <- content(auth_response, as = "parsed")$access_token
-    
-    # Search API endpoint
-    base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
-    
-    # Construct request URL
-    request_url <- paste0(base_url, 
-                          "?searchVal=", postal_code,
-                          "&returnGeom=Y",
-                          "&getAddrDetails=Y")
-    
-    # Make API request
-    search_response <- GET(
-      url = request_url,
-      add_headers(Authorization = token)
-    )
-    
-    if (status_code(search_response) != 200) {
-      stop(paste("Search failed with status:", status_code(search_response)))
-    }
-    
-    # Parse response
-    result <- content(search_response, as = "text", encoding = "UTF-8")
-    data <- fromJSON(result)
-    
-    if (data$found == 0) {
-      stop("No results found for this postal code")
-    }
-    
-    # Extract first result (most relevant)
-    first_result <- data$results[1, ]
-    
-    # Format as "lat,long" string
-    coords_string <- paste0(first_result$LATITUDE, ",", first_result$LONGITUDE)
-    
-    return(coords_string)
+  # Authenticate with OneMap API
+  auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
+  email <- "loowenwen1314@gmail.com"
+  password <- "sochex-6jobge-fomsYb"
+  
+  auth_body <- list(email = email, password = password)
+  
+  auth_response <- POST(
+    url = auth_url,
+    body = auth_body,
+    encode = "json"
+  )
+  
+  if (status_code(auth_response) != 200) {
+    stop(paste("Authentication failed with status:", status_code(auth_response)))
   }
   
+  # Get token from response
+  token <- content(auth_response, as = "parsed")$access_token
+  
+  # Search API endpoint
+  base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+  
+  # Construct request URL
+  request_url <- paste0(base_url, 
+                        "?searchVal=", postal_code,
+                        "&returnGeom=Y",
+                        "&getAddrDetails=Y")
+  
+  # Make API request
+  search_response <- GET(
+    url = request_url,
+    add_headers(Authorization = token)
+  )
+  
+  if (status_code(search_response) != 200) {
+    stop(paste("Search failed with status:", status_code(search_response)))
+  }
+  
+  # Parse response
+  result <- content(search_response, as = "text", encoding = "UTF-8")
+  data <- fromJSON(result)
+  
+  if (data$found == 0) {
+    stop("No results found for this postal code")
+  }
+  
+  # Extract first result (most relevant)
+  first_result <- data$results[1, ]
+  
+  # Format as "lat,long" string
+  coords_string <- paste0(first_result$LATITUDE, ",", first_result$LONGITUDE)
+  
+  return(coords_string)
+}
+
 
 RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                              public = list(
@@ -123,7 +123,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  }
                                },
                                
-                        
+                               
                                generate_all_route_sequences = function(api_response) {
                                  
                                  all_sequences <- list()
@@ -277,7 +277,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                },
                                
                                combined_transport_efficiency = function(routes) {
-                              
+                                 
                                  transport_scores <- numeric(length(routes))
                                  
                                  # Loop through all routes
@@ -452,8 +452,8 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                },
                                
                                calculate_rqs = function(start, end, date, time, maxWalkDistance = 1000,
-                                                        weights = c(transport = 0.4, comfort = 0.3, 
-                                                                    robustness = 0.2, service = 0.1)) {
+                                                        weights = c(transport = 0.25, comfort = 0.25, 
+                                                                    robustness = 0.25, service = 0.25)) {
                                  
                                  # Get route data with all required parameters
                                  routes <- self$get_route_data(
@@ -472,8 +472,8 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  
                                  # Calculate component scores
                                  scores <- c(
-                                   transport = self$combined_transport_efficiency(routes),
-                                   comfort = self$calculate_comfort_score(routes_metrics),
+                                   transport = round(self$combined_transport_efficiency(routes)),
+                                   comfort = round(self$calculate_comfort_score(routes_metrics)),
                                    robustness = self$calculate_robustness_score(fixed_sequences, routes),
                                    service = if (!is.null(self$analyzer)) {
                                      self$calculate_route_options_service_quality(routes, time)
@@ -510,8 +510,8 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                                                              robustness = 0.25, service = 0.25)) {
                                  
                                  # Process all start points
-                                 start_coords <- sapply(starts, convert_to_coords)
-                                 end_coord <- convert_to_coords(end)
+                                 start_coords <- sapply(starts, self$convert_to_coords)
+                                 end_coord <- self$convert_to_coords(end)
                                  
                                  # Calculate RQS for each start point
                                  results <- lapply(start_coords, function(start) {

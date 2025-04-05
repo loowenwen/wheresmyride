@@ -18,7 +18,7 @@ shinyUI(
     id = "mainTabs",
     windowTitle = "Where's My Ride",
     
-    # --- Home Tab ---
+    # --- Home ---
     tabPanel("Home",
              fluidPage(
                fluidRow(
@@ -75,42 +75,68 @@ shinyUI(
     
     # --- Explore ---
     navbarMenu("Explore",
-      tabPanel("Overview", value = "heatmap",
-               div(style = "height: 100vh; display: flex; flex-direction: column;",
-                   fluidRow(style = "flex-grow: 1;",
-                            column(6,
-                                   div(style = "display: flex; flex-direction: column; height: 100%;",
-                                       sidebarLayout(
-                                         sidebarPanel(style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px; height: 250px; flex-shrink: 0;",
-                                                      textInput("postal_code", "Enter Postal Code", value = "", placeholder = "e.g., 123456"),
-                                                      sliderInput("search_radius", "Search Radius (meters)", min = 100, max = 2000, value = 500, step = 100),
-                                                      actionButton("search_location", "Search", class = "btn-primary", style = "width: 100%;"),
-                                                      h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
-                                                      verbatimTextOutput("location_summary")
-                                         ),
-                                         mainPanel(style = "flex-grow: 1; display: flex;",
-                                                   div(style = "flex-grow: 1; position: relative;", leafletOutput("location_map", height = "700px"))
-                                         )
-                                       )
-                                   )
-                            ),
-                            column(6,
-                                   div(style = "display: flex; flex-direction: column; height: 100%;",
-                                       div(style = "margin-bottom: 10px; height: 80px; flex-shrink: 0;",
-                                           selectInput("density_map_type", "Density Map of:", choices = c("MRT Stations" = "mrt", "Bus Stops" = "bus"))
-                                       ),
-                                       div(style = "flex-grow: 1; position: relative;",
-                                           conditionalPanel(condition = "input.density_map_type == 'mrt'",
-                                                            leafletOutput("mrt_station_density_map", height = "610px")),
-                                           conditionalPanel(condition = "input.density_map_type == 'bus'",
-                                                            leafletOutput("bus_stop_density_map", height = "610px"))
-                                       )
-                                   )
+               
+               # --- Transport Heatmap ---
+               tabPanel(
+                 "Transport Heatmap", value = "heatmap",
+                 div(
+                   style = "height: 100vh; display: flex; flex-direction: column;",
+                   fluidRow(
+                     style = "flex-grow: 1;",
+                     column(6,
+                            div(
+                              style = "display: flex; flex-direction: column; height: 100%;",
+                              sidebarLayout(
+                                sidebarPanel(
+                                  style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px; height: 250px; flex-shrink: 0;",
+                                  textInput("postal_code", "Enter Postal Code", value = "", placeholder = "e.g., 123456"),
+                                  sliderInput("search_radius", "Search Radius (meters)", min = 100, max = 2000, value = 500, step = 100),
+                                  actionButton("search_location", "Search", class = "btn-primary", style = "width: 100%;"),
+                                  h4("Summary Statistics", style = "color: #2C3E50; margin-top: 20px;"),
+                                  verbatimTextOutput("location_summary")
+                                ),
+                                mainPanel(
+                                  style = "flex-grow: 1; display: flex;",
+                                  div(
+                                    style = "flex-grow: 1; position: relative;",
+                                    leafletOutput("location_map", height = "700px")
+                                  )
+                                )
+                              )
                             )
+                     ),
+
+                     column(6,
+                            div(
+                              style = "display: flex; flex-direction: column; height: 100%;",
+                              div(
+                                style = "margin-bottom: 10px; height: 80px; flex-shrink: 0;",
+                                selectInput("density_map_type", "Density Map of:", choices = c("MRT Stations" = "mrt", "Bus Stops" = "bus"))
+                              ),
+                              div(
+                                style = "flex-grow: 1; position: relative;",
+                                conditionalPanel(
+                                  condition = "input.density_map_type == 'mrt'",
+                                  leafletOutput("mrt_station_density_map", height = "610px")
+                                ),
+                                conditionalPanel(
+                                  condition = "input.density_map_type == 'bus'",
+                                  leafletOutput("bus_stop_density_map", height = "610px")
+                                )
+                              )
+                            )
+                     )
                    )
+                 )
+               ),
+               # --- Travel Reach & Nearby Transport ---
+               tabPanel(
+                 "Travel Reach & Nearby Transport", value = "commute",
+                 h3("Isochrone Visualization", style = "font-size: 24px; font-weight: bold; font-family: 'Times New Roman', serif; color: #023047;"),
+                 leafletOutput("t2_isochrone_map", height = 500)
                )
-      )
-      ),
+    ),
+    
       
     
     tabPanel("Comparing Transport Accessibility", value = "compare",
@@ -170,10 +196,6 @@ shinyUI(
                                          tableOutput("t2_nearest_bus_mrt"))
                                 )
                        ),
-                       tabPanel("Travel Time Map", value = "commute",
-                                h3("Isochrone Visualization", style = "font-size: 24px; font-weight: bold; font-family: 'Times New Roman', serif; color: #023047;"),
-                                leafletOutput("t2_isochrone_map", height = 500)
-                       )
                      )
                  )
                )

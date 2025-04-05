@@ -127,8 +127,12 @@ mrt_with_planning <- st_join(mrt_sf, planning_areas, join = st_within, largest =
 mrt_with_planning %>%
   filter(is.na(pln_area_n))
 
+mrt_final <- mrt_with_planning %>%
+  st_drop_geometry() %>%
+  left_join(mrt_stations)
+
 # save as RDS
-saveRDS(mrt_with_planning, file = "data/RDS Files/mrt_with_planning.rds")
+saveRDS(mrt_final, file = "data/RDS Files/mrt_with_planning.rds")
 
 # bus stops
 bus_sf <- st_as_sf(bus_stops,
@@ -148,3 +152,18 @@ bus_with_planning <- bus_with_planning %>%
 
 # save as RDS
 saveRDS(bus_with_planning, file = "data/RDS Files/bus_with_planning.rds")
+
+
+# load RDS objects
+planning_areas <- 
+  readRDS("data/RDS Files/planning_area_polygons.RDS")
+
+bus_stops <- 
+  readRDS("data/RDS Files/bus_stops.RDS")
+bus_with_planning <- 
+  readRDS("data/RDS Files/bus_with_planning.rds")
+
+mrt_stations <-
+  readRDS("data/RDS Files/mrt_stations.RDS")
+mrt_with_planning <- 
+  readRDS("data/RDS Files/mrt_with_planning.rds")

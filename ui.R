@@ -1,13 +1,9 @@
-library(httr)
-library(jsonlite)
 library(leaflet)
-library(dplyr)
 library(plotly)
-library(sf)
-library(scales)
 library(shiny)
 library(shinyjs)
 library(shinythemes)
+
 source("global.R") 
 
 shinyUI(
@@ -242,6 +238,11 @@ shinyUI(
                  ),
                  uiOutput("t4_score_display"),
                  uiOutput("t4_score_interpretation"),
+                 tags$p(
+                   class = "text-muted",
+                   "This score gives an overall measure of accessibility based on four key factors: MRT access, bus connectivity, walkability, and congestion. 
+                   Each factor contributes equally by default (25%), but you can adjust their importance based on your preferences on the left"
+                 ),
                  br(),
                  
                  # --- Component Scores Section ---
@@ -252,19 +253,27 @@ shinyUI(
                  fluidRow(
                    column(3,
                           h5(tagList(icon("train-subway", lib = "font-awesome"), " MRT Score")),
-                          uiOutput("t4_mrt_score")
+                          uiOutput("t4_mrt_score"),
+                          tags$p(class = "text-muted",
+                                 "This score reflects your access to MRT stations. It considers how many stations are within your preferred walking distance, how close they are on average, and how many different MRT lines are available nearby.")
                    ),
                    column(3,
                           h5(tagList(icon("bus-simple", lib = "font-awesome"), " Bus Score")),
-                          uiOutput("t4_bus_score")
+                          uiOutput("t4_bus_score"),
+                          tags$p(class = "text-muted",
+                                 "This score captures your access to bus services. It’s based on the number of bus stops near you, how close they are on average, and how many different bus services are available within your preferred radius.")
                    ),
                    column(3,
                           h5(tagList(icon("person-walking", lib = "font-awesome"), " Walkability Score")),
-                          uiOutput("t4_walk_score")
+                          uiOutput("t4_walk_score"),
+                          tags$p(class = "text-muted",
+                                 "This score shows how easily you can walk to nearby MRT stations and bus stops. It’s calculated based on the average walking distance to each within your selected radius.")
                    ),
                    column(3,
                           h5(tagList(icon("hourglass", lib = "font-awesome"), " Congestion Score")),
-                          uiOutput("t4_congestion_score")
+                          uiOutput("t4_congestion_score"),
+                          tags$p(class = "text-muted",
+                                 "This score measures public transport crowd levels during your preferred travel time. It factors in MRT crowd density and bus passenger volumes throughout the day.")
                    )
                  ),
                  br(),
@@ -279,11 +288,13 @@ shinyUI(
                    column(
                      7,
                      h4("Travel Time to Key Locations", class = "fw-bold"),
+                     uiOutput("t4_key_location_note"),
                      tableOutput("t4_key_location_times")
                    ),
                    column(
                      5,
                      h4("Nearest Bus Stops and MRT Stations", class = "fw-bold"),
+                     uiOutput("t4_nearest_bus_mrt_note"),
                      tableOutput("t4_nearest_bus_mrt")
                    )
                  )

@@ -133,216 +133,175 @@ shinyServer(function(input, output, session) {
     })
   })
   
-  # ==== TAB 2: Accessibility Analysis ====
-  # --- State Management ---
-  postal_code <- reactiveVal(NULL)
-  initial_calculation <- reactiveVal(FALSE)
-  recalculated <- reactiveVal(FALSE)
   
-  current_settings <- reactiveValues(
-    travel_time = 15,
-    walking_distance = 400,
-    waiting_time = 5,
-    transport_type = "MRT & Bus"
+  # ==== TAB 4: Accessibility Dashboard ====
+  # --- Reactive Values to Store Results ---
+  accessibility_scores <- reactiveValues(
+    overall_score = NULL,
+    mrt_score = NULL,
+    bus_score = NULL,
+    walk_score = NULL,
+    congestion_score = NULL,
+    travel_times = NULL,
+    nearby_stops = NULL
   )
   
-  # --- Reactive State Observers ---
-  observeEvent(input$t4_postal_code, {
-    postal_code(input$t4_postal_code)
-    initial_calculation(FALSE)
-    recalculated(FALSE)
+  # --- Check if Calculation Has Been Performed ---
+  initial_calculation <- reactive({
+    !is.null(accessibility_scores$overall_score)
   })
   
-  observeEvent(input$t4_accessibility_score, {
-    req(postal_code())
-    initial_calculation(TRUE)
-    recalculated(FALSE)
-    
-    current_settings$travel_time <- 15
-    current_settings$walking_distance <- 400
-    current_settings$waiting_time <- 5
-    current_settings$transport_type <- "MRT & Bus"
-  })
-  
-  observeEvent(input$t4_recalculate, {
-    req(postal_code(), initial_calculation())
-    
-    if (
-      current_settings$travel_time != input$t4_travel_time ||
-      current_settings$walking_distance != input$t4_walking_distance ||
-      current_settings$waiting_time != input$t4_waiting_time ||
-      current_settings$transport_type != input$t4_transport_type
-    ) {
-      recalculated(TRUE)
-      
-      current_settings$travel_time <- input$t4_travel_time
-      current_settings$walking_distance <- input$t4_walking_distance
-      current_settings$waiting_time <- input$t4_waiting_time
-      current_settings$transport_type <- input$t4_transport_type
-    }
-  })
-  
-  active_settings <- reactive({
-    if (recalculated()) {
-      list(
-        travel_time = input$t4_travel_time,
-        walking_distance = input$t4_walking_distance,
-        waiting_time = input$t4_waiting_time,
-        transport_type = input$t4_transport_type
-      )
-    } else if (initial_calculation()) {
-      list(
-        travel_time = 15,
-        walking_distance = 400,
-        waiting_time = 5,
-        transport_type = "MRT & Bus"
-      )
-    } else NULL
-  })
-  
-  # --- Dummy Calculation Logic ---
-  nearest_transport <- reactive({
+  # --- Bundle scores into a reactive list for UI access ---
+  get_scores <- reactive({
     req(initial_calculation())
-    set.seed(as.numeric(charToRaw(substr(postal_code(), 1, 6))))
-    
-    n_bus <- sample(3:5, 1)
-    bus_stops <- data.frame(
-      Name = paste("Bus Stop", LETTERS[1:n_bus]),
-      Distance = round(runif(n_bus, 100, 800), 1),
-      Routes = replicate(n_bus, paste(sample(10:199, sample(2:4, 1)), collapse = ", "))
+    list(
+      overall = accessibility_scores$overall_score,
+      mrt = accessibility_scores$mrt_score,
+      bus = accessibility_scores$bus_score,
+      walk = accessibility_scores$walk_score,
+      congestion = accessibility_scores$congestion_score
     )
-    
-    n_mrt <- sample(1:2, 1)
-    mrt_stations <- data.frame(
-      Name = paste("MRT", c("North-South Line", "East-West Line", "Circle Line")[1:n_mrt]),
-      Distance = round(runif(n_mrt, 200, 1500), 1),
-      Travel_Time = sample(5:15, n_mrt, replace = TRUE)
-    )
-    
-    list(bus_stops = bus_stops, mrt_stations = mrt_stations)
   })
   
+  # --- Simulate Key Locations (reactive) ---
   key_locations <- reactive({
     req(initial_calculation())
-    set.seed(as.numeric(charToRaw(substr(postal_code(), 1, 6))))
+    accessibility_scores$travel_times
+  })
+  
+  # --- Simulate Nearest Stops (reactive) ---
+  nearest_bus_mrt <- reactive({
+    req(initial_calculation())
+    accessibility_scores$nearby_stops
+  })
+  
+  # --- Initial Accessibility Score Calculation ---
+  observeEvent(input$t4_get_score, {
+    accessibility_scores$overall_score <- round(runif(1, 50, 100), 1)
+    accessibility_scores$mrt_score <- round(runif(1, 0, 100), 1)
+    accessibility_scores$bus_score <- round(runif(1, 0, 100), 1)
+    accessibility_scores$walk_score <- round(runif(1, 0, 100), 1)
+    accessibility_scores$congestion_score <- round(runif(1, 0, 100), 1)
     
-    data.frame(
-      Location = c("CBD", "Nearest Mall", "Nearest School", "Nearest Hospital", "Nearest Park"),
-      Distance_km = round(runif(5, 0.5, 10), 1),
-      Travel_Time_mins = sample(5:60, 5, replace = TRUE),
-      Transport_Mode = sample(c("MRT", "Bus", "MRT + Bus"), 5, replace = TRUE)
+    accessibility_scores$travel_times <- data.frame(
+      Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
+      TravelTime_Min = sample(10:60, 6)
+    )
+    colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
+    
+    accessibility_scores$nearby_stops <- data.frame(
+      Type = c("MRT", "MRT", "Bus", "Bus"),
+      Description = c("Tampines", "Simei", "Bus 293", "Bus 10"),
+      Distance_m = sample(100:500, 4)
+    )
+    colnames(accessibility_scores$nearby_stops)[3] <- "Distance (m)"
+    
+  })
+  
+  # --- Recalculate Accessibility with Weights ---
+  observeEvent(input$t4_recalculate, {
+    total_weight <- input$t4_mrt + input$t4_bus + input$t4_walk + input$t4_congestion
+    if (total_weight == 0) total_weight <- 1  # Prevent division by zero
+    
+    w_mrt <- input$t4_mrt / total_weight
+    w_bus <- input$t4_bus / total_weight
+    w_walk <- input$t4_walk / total_weight
+    w_congestion <- input$t4_congestion / total_weight
+    
+    # Update component scores
+    accessibility_scores$mrt_score <- round(runif(1, 0, 100), 1)
+    accessibility_scores$bus_score <- round(runif(1, 0, 100), 1)
+    accessibility_scores$walk_score <- round(runif(1, 0, 100), 1)
+    accessibility_scores$congestion_score <- round(runif(1, 0, 100), 1)
+    
+    # Weighted overall score
+    accessibility_scores$overall_score <- round(
+      accessibility_scores$mrt_score * w_mrt +
+        accessibility_scores$bus_score * w_bus +
+        accessibility_scores$walk_score * w_walk +
+        accessibility_scores$congestion_score * w_congestion, 1
     )
   })
   
-  accessibility_scores <- reactive({
-    settings <- active_settings()
-    req(settings)
-    
-    set.seed(as.numeric(charToRaw(substr(postal_code(), 1, 6))))
-    
-    mrt <- round(100 - (settings$travel_time * 1.5) + rnorm(1, 10, 3), 1)
-    bus <- round(100 - (settings$walking_distance / 20) + rnorm(1, 5, 2), 1)
-    walk <- round(100 - (settings$walking_distance / 10) + rnorm(1, 15, 5), 1)
-    congestion <- round(100 - (settings$waiting_time * 3) + rnorm(1, 20, 5), 1)
-    
-    if (settings$transport_type == "MRT") {
-      mrt <- mrt * 1.2; bus <- bus * 0.8
-    } else if (settings$transport_type == "Bus") {
-      mrt <- mrt * 0.8; bus <- bus * 1.2
-    }
-    
-    list(
-      overall = round((mrt * 0.3 + bus * 0.3 + walk * 0.2 + congestion * 0.2), 1),
-      mrt = min(max(mrt, 0), 100),
-      bus = min(max(bus, 0), 100),
-      walk = min(max(walk, 0), 100),
-      congestion = min(max(congestion, 0), 100)
-    )
-  })
+  # --- UI Outputs ---
   
-  # --- Render Outputs for Accessibility Score UI ---
-  output$t4_dynamic_score_display <- renderUI({
-    if (!initial_calculation()) return(div(style = "font-size: 48px; font-weight: bold; color: #666;", "00.0"))
-    score <- accessibility_scores()$overall
-    color <- case_when(score >= 80 ~ "#2ecc71", score >= 60 ~ "#f39c12", TRUE ~ "#e74c3c")
-    div(style = paste0("font-size: 48px; font-weight: bold; color: ", color, ";"), score)
+  output$t4_score_display <- renderUI({
+    if (!initial_calculation())
+      return(h1("00.0", style = "font-weight: bold"))
+    
+    score <- get_scores()$overall
+    color <- case_when(
+      score >= 80 ~ "text-success",
+      score >= 60 ~ "text-warning",
+      TRUE ~ "text-danger"
+    )
+    h1(score, class = color, style = "font-weight: bold")
   })
   
   output$t4_score_interpretation <- renderUI({
     if (!initial_calculation()) {
-      return(div(style = "font-size: 16px; margin-top: 10px; color: #666;",
-                 "Enter a postal code and click 'Get Accessibility Score' to see results"))
+      return(p("Enter a postal code and click 'Get Accessibility Score' to see results."))
     }
     
-    score <- accessibility_scores()$overall
-    text <- case_when(
-      score >= 80 ~ "Excellent accessibility! This location has great transport options.",
-      score >= 60 ~ "Good accessibility. Most amenities are easily reachable.",
-      score >= 40 ~ "Moderate accessibility. Some transport options available.",
-      TRUE ~ "Poor accessibility. Limited transport options available."
+    score <- get_scores()$overall
+    interpretation <- case_when(
+      score >= 80 ~ "Excellent accessibility - this location offers top-tier transport connectivity and convenience.",
+      score >= 60 ~ "Good accessibility - most destinations are easily reachable with decent transport options.",
+      score >= 40 ~ "Moderate accessibility - there are some transport links, but coverage or convenience may be limited.",
+      TRUE ~ "Poor accessibility - the area has limited transport options and may be harder to reach."
     )
-    div(style = "font-size: 16px; margin-top: 10px;", text)
+    
+    p(interpretation)
   })
   
-  output$t4_mrt_score        <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$mrt })
-  output$t4_bus_score        <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$bus })
-  output$t4_walk_score       <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$walk })
-  output$t4_congestion_score <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$congestion })
+  output$t4_mrt_score <- renderUI({
+    if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
+    score <- get_scores()$mrt
+    color <- case_when(score >= 80 ~ "text-success", score >= 60 ~ "text-warning", TRUE ~ "text-danger")
+    h2(score, class = color, style = "font-weight: bold")
+  })
+  
+  output$t4_bus_score <- renderUI({
+    if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
+    score <- get_scores()$bus
+    color <- case_when(score >= 80 ~ "text-success", score >= 60 ~ "text-warning", TRUE ~ "text-danger")
+    h2(score, class = color, style = "font-weight: bold")
+  })
+  
+  output$t4_walk_score <- renderUI({
+    if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
+    score <- get_scores()$walk
+    color <- case_when(score >= 80 ~ "text-success", score >= 60 ~ "text-warning", TRUE ~ "text-danger")
+    h2(score, class = color, style = "font-weight: bold")
+  })
+  
+  output$t4_congestion_score <- renderUI({
+    if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
+    score <- get_scores()$congestion
+    color <- case_when(score >= 80 ~ "text-success", score >= 60 ~ "text-warning", TRUE ~ "text-danger")
+    h2(score, class = color, style = "font-weight: bold")
+  })
   
   output$t4_key_location_times <- renderTable({
-    if (!initial_calculation()) return(data.frame(Note = "Click 'Get Accessibility Score' to see travel times"))
     key_locations()
   })
   
-  output$t4_nearest_bus_mrt <- renderTable({
-    if (!initial_calculation()) return(data.frame(Note = "Click 'Get Accessibility Score' to see nearby transport options"))
-    
-    transport <- nearest_transport()
-    
-    bus_df <- transport$bus_stops %>% 
-      mutate(Type = "Bus Stop") %>%
-      select(Type, Name, Distance, Info = Routes)
-    
-    mrt_df <- transport$mrt_stations %>% 
-      mutate(Type = "MRT Station", Info = paste("Travel time:", Travel_Time, "mins")) %>%
-      select(Type, Name, Distance, Info)
-    
-    bind_rows(bus_df, mrt_df) %>% arrange(Distance)
-  })
-  
-  output$t4_isochrone_map <- renderLeaflet({
-    map <- leaflet() %>%
-      addTiles() %>%
-      setView(lng = 103.8198, lat = 1.3521, zoom = 12)
-    
-    if (initial_calculation()) {
-      walk_dist <- if (recalculated()) input$t2_walking_distance else 400
-      map <- map %>%
-        addMarkers(lng = 103.8198, lat = 1.3521, popup = "Approximate location") %>%
-        addCircles(lng = 103.8198, lat = 1.3521, radius = walk_dist,
-                   color = "#ff7800", fillOpacity = 0.2,
-                   popup = paste("Walking distance:", walk_dist, "m"))
+  output$t4_key_location_note <- renderUI({
+    if (!initial_calculation()) {
+      return(p("Enter a postal code and click 'Get Accessibility Score' to see results."))
     }
-    map
+    return(NULL)
   })
   
-  # --- 
-  output$t4_mrt_title <- renderText({ "🚆 MRT Score" })
-  output$t4_bus_title <- renderText({ "🚌 Bus Score" })
-  output$t4_walk_title <- renderText({ "🚶 Walkability" })
-  output$t4_congestion_title <- renderText({ "⏳ Congestion" })
-  
-  output$t4_mrt_score <- renderText({ "85" })
-  output$t4_bus_score <- renderText({ "78" })
-  output$t4_walk_score <- renderText({ "92" })
-  output$t4_congestion_score <- renderText({ "65" })
-  
-  observeEvent(input$reset_weights, {
-    updateSliderInput(session, "w_mrt", value = 25)
-    updateSliderInput(session, "w_bus", value = 25)
-    updateSliderInput(session, "w_walk", value = 25)
-    updateSliderInput(session, "w_congestion", value = 25)
+  output$t4_nearest_bus_mrt <- renderTable({
+    nearest_bus_mrt()
   })
   
+  output$t4_nearest_bus_mrt_note <- renderUI({
+    if (!initial_calculation()) {
+      return(p("Enter a postal code and click 'Get Accessibility Score' to see results."))
+    }
+    return(NULL)
+  })
   
 })

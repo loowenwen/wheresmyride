@@ -142,16 +142,16 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    for (i in seq_along(mode)) {
                                      current_mode <- mode[[i]]
                                      
-                                     # Skip pure walking segments (except first/last)
+                                     #skips pure walking segments
                                      if (current_mode == "WALK" && i != 1 && i != length(mode)) next
                                      
-                                     # Add starting point of this leg
+                                     #finds the starting transit of the leg
                                      if (from_to_index <= length(from_to_stops)) {
                                        route_sequence <- c(route_sequence, from_to_stops[from_to_index])
                                        from_to_index <- from_to_index + 1
                                      }
                                      
-                                     # Check for valid intermediate stops
+                                     #cehck for valid intermediate stops
                                      if (current_mode != "WALK") {
                                        max_checks <- 3  
                                        checks_done <- 0
@@ -385,6 +385,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  return(round(robustness_score))
                                },
                                
+                              
                                calculate_route_options_service_quality = function(routes, departure_time) {
                                  if (is.null(self$analyzer)) {
                                    stop("Bus frequency analyzer not provided")
@@ -392,16 +393,10 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  
                                  # Calculate scores for all available routes (up to 3)
                                  route_scores <- sapply(1:length(routes$legs), function(i) {
-                                   # Extract bus numbers for this route
+                                   # Extract bus numbers and modes for this route
                                    bus_numbers <- na.omit(routes$legs[[i]]$route[nzchar(routes$legs[[i]]$route) & 
                                                                                    routes$legs[[i]]$mode == "BUS"])
-                                   
-                                   if (length(bus_numbers) == 0) return(0)  # No buses in this route
-                                   
-                                   # Get frequency data
-                                   freq_data <- lapply(bus_numbers, function(bus_no) self$analyzer$get_service_frequency(bus_no))
-                                   freq_data <- freq_data[!sapply(freq_data, is.null)]
-                                   if (length(freq_data) == 0) return(0)
+                                   has_subway <- "SUBWAY" %in% routes$legs[[i]]$mode
                                    
                                    # Determine time period (same for all routes)
                                    time_parts <- as.numeric(strsplit(departure_time, ":")[[1]])
@@ -417,22 +412,53 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      "PM_Offpeak"
                                    }
                                    
-                                   # Calculate combined wait time for this route
-                                   avg_waits <- sapply(freq_data, function(x) x[[time_period]]$avg)
-                                   avg_waits <- avg_waits[!is.na(avg_waits)]
-                                   if (length(avg_waits) == 0) return(0)
+                                   # Calculate MRT score if route includes subway
+                                   mrt_score <- if (has_subway) {
+                                     if (time_period %in% c("AM_Peak", "PM_Peak")) {
+                                       20  # 5-7 minutes during peak
+                                     } else {
+                                       80  # 2-3 minutes during off-peak
+                                     }
+                                   } else {
+                                     0  # No MRT component
+                                   }
                                    
-                                   1 / mean(1 / avg_waits)  # Returns combined wait time for this route
-                                 })
-                                 
-                                 # Convert wait times to scores
-                                 route_scores <- sapply(route_scores, function(wait) {
-                                   case_when(
-                                     wait <= 5  ~ 90,
-                                     wait <= 8  ~ 75,
-                                     wait <= 12 ~ 60,
-                                     TRUE       ~ 40
-                                   )
+                                   # Calculate bus score if route includes buses
+                                   bus_score <- if (length(bus_numbers) > 0) {
+                                     # Get frequency data
+                                     freq_data <- lapply(bus_numbers, function(bus_no) self$analyzer$get_service_frequency(bus_no))
+                                     freq_data <- freq_data[!sapply(freq_data, is.null)]
+                                     if (length(freq_data) == 0) return(0)
+                                     
+                                     # Calculate combined wait time for buses
+                                     avg_waits <- sapply(freq_data, function(x) x[[time_period]]$avg)
+                                     avg_waits <- avg_waits[!is.na(avg_waits)]
+                                     if (length(avg_waits) == 0) return(0)
+                                     
+                                     combined_wait <- 1 / mean(1 / avg_waits)
+                                     
+                                     # Convert wait time to score
+                                     case_when(
+                                       combined_wait <= 5  ~ 90,
+                                       combined_wait <= 8  ~ 75,
+                                       combined_wait <= 12 ~ 60,
+                                       TRUE               ~ 40
+                                     )
+                                   } else {
+                                     0  # No bus component
+                                   }
+                                   
+                                   # Combine MRT and bus scores (weighted by presence)
+                                   if (has_subway && length(bus_numbers) > 0) {
+                                     # If route has both, average the scores
+                                     mean(c(mrt_score, bus_score))
+                                   } else if (has_subway) {
+                                     mrt_score
+                                   } else if (length(bus_numbers) > 0) {
+                                     bus_score
+                                   } else {
+                                     0  # No public transport in this route
+                                   }
                                  })
                                  
                                  # Handle cases with <3 routes
@@ -452,10 +478,10 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                },
                                
                                calculate_rqs = function(start, end, date, time, maxWalkDistance = 1000,
-                                                        weights = c(transport = 0.25, comfort = 0.25, 
-                                                                    robustness = 0.25, service = 0.25)) {
-                                 
-                                 # Get route data with all required parameters
+                                                         weights = c(transport = 0.25, comfort = 0.25, 
+                                                          robustness = 0.25, service = 0.25)) {
+                               
+                               # Get route data with all required parameters
                                  routes <- self$get_route_data(
                                    start = start,
                                    end = end,
@@ -470,18 +496,20 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  routes_metrics <- self$extract_route_metrics(routes) %>% 
                                    mutate(route_name = names(fixed_sequences))
                                  
-                                 # Calculate component scores
-                                 scores <- c(
-                                   transport = round(self$combined_transport_efficiency(routes)),
-                                   comfort = round(self$calculate_comfort_score(routes_metrics)),
-                                   robustness = self$calculate_robustness_score(fixed_sequences, routes),
-                                   service = if (!is.null(self$analyzer)) {
-                                     self$calculate_route_options_service_quality(routes, time)
-                                   } else {
-                                     warning("Service quality score not calculated - no bus analyzer provided")
-                                     0
-                                   }
-                                 )
+          
+                                   # Calculate component scores
+                                   scores <- c(
+                                     
+                                     transport = round(self$combined_transport_efficiency(routes)),
+                                     comfort = round(self$calculate_comfort_score(routes_metrics)),
+                                     robustness = self$calculate_robustness_score(fixed_sequences, routes),
+                                     service = if (!is.null(self$analyzer)) {
+                                       self$calculate_route_options_service_quality(routes, time)
+                                     } else {
+                                       warning("Service quality score not calculated - no bus analyzer provided")
+                                       0
+                                     }
+                                   )
                                  
                                  # Calculate weighted RQS
                                  weighted_scores <- scores * weights
@@ -494,15 +522,19 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    weights = weights,
                                    weighted_scores = weighted_scores
                                  )
-                               },
+                             },
+                               
                                
                                #convert to coords
-                               convert_to_coords = function(location) {
-                                 if (grepl("^\\d{6}$", location)) {
-                                   return(get_coordinates_from_postal(location))
-                                 }
-                                 return(location)
-                               },
+                              convert_to_coords = function(location) {
+                                  if (grepl("^\\d{6}$", location)) {
+                                    return(get_coordinates_from_postal(location))
+                                    }
+                                  return(location)
+                                  },
+                              
+                              
+                               
                                
                                
                                calculate_multiple_rqs = function(starts, end, date, time, maxWalkDistance = 1000,

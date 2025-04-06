@@ -5,8 +5,207 @@ library(purrr)
 library(httr)
 library(jsonlite)
 
+BusFrequencyAnalyzer <- setRefClass(
+  "BusFrequencyAnalyzer",
+  fields = list(
+    api_key = "character",
+    base_url = "character"
+  ),
+  methods = list(
+    initialize = function(api_key) {
+      .self$api_key <- api_key
+      .self$base_url <- "https://datamall2.mytransport.sg/ltaodataservice/"
+    },
+    
+    get_all_bus_services = function() {
+      url <- paste0(.self$base_url, "BusServices")
+      response <- GET(url, add_headers(AccountKey = .self$api_key))
+      content <- content(response, "text", encoding = "UTF-8")
+      fromJSON(content)$value
+    },
+    
+    parse_frequency = function(freq_str) {
+      if (is.null(freq_str) || freq_str == "" || !grepl("-", freq_str)) {
+        return(list(min = NA, max = NA, avg = NA))
+      }
+      
+      parts <- as.numeric(strsplit(freq_str, "-")[[1]])
+      if (length(parts) != 2 || any(is.na(parts))) {
+        return(list(min = NA, max = NA, avg = NA))
+      }
+      
+      list(min = parts[1], max = parts[2], avg = mean(parts))
+    },
+    
+    get_service_frequency = function(service_no) {
+      all_services <- .self$get_all_bus_services()
+      service <- all_services %>% 
+        filter(ServiceNo == service_no) %>%
+        slice(1)  # Take first direction if multiple
+      
+      if (nrow(service) == 0) return(NULL)
+      
+      list(
+        AM_Peak = .self$parse_frequency(service$AM_Peak_Freq),
+        AM_Offpeak = .self$parse_frequency(service$AM_Offpeak_Freq),
+        PM_Peak = .self$parse_frequency(service$PM_Peak_Freq),
+        PM_Offpeak = .self$parse_frequency(service$PM_Offpeak_Freq),
+        ServiceNo = service_no
+      )
+    },
+    
+    get_bus_route_details = function(service_no, direction = 1) {
+      url <- paste0(.self$base_url, "BusRoutes")
+      all_records <- list()
+      offset <- 0
+      
+      repeat {
+        response <- GET(url,
+                        add_headers(AccountKey = .self$api_key),
+                        query = list(
+                          "$filter" = paste0("ServiceNo eq '", service_no, "' and Direction eq ", direction),
+                          "$skip" = offset
+                        ))
+        
+        content <- content(response, "text", encoding = "UTF-8")
+        data <- fromJSON(content)$value
+        
+        if (length(data) == 0) break
+        
+        all_records <- append(all_records, list(data))
+        offset <- offset + 500
+      }
+      
+      if (length(all_records) == 0) return(NULL)
+      bind_rows(all_records)
+    },
+    
+    verify_bus_at_stop = function(bus_no, stop_code) {
+      for (dir in 1:2) {
+        route <- .self$get_bus_route_details(bus_no, dir)
+        if (!is.null(route) && stop_code %in% route$BusStopCode) {
+          return(list(
+            found = TRUE,
+            direction = dir,
+            sequence = which(route$BusStopCode == stop_code)[1],
+            route_data = route
+          ))
+        }
+      }
+      return(list(found = FALSE))
+    },
+    
+    combine_period = function(freq_data, period) {
+      periods <- lapply(freq_data, function(x) x[[period]])
+      valid <- periods[!sapply(periods, function(x) any(is.na(x$avg)))]
+      
+      if (length(valid) == 0) return(list(avg = NA, min = NA, max = NA))
+      
+      freqs <- lapply(valid, function(x) {
+        list(
+          avg = 1/x$avg,
+          min = 1/x$max,
+          max = 1/x$min
+        )
+      })
+      
+      combined_avg <- sum(sapply(freqs, function(x) x$avg))
+      combined_min <- sum(sapply(freqs, function(x) x$min))
+      combined_max <- sum(sapply(freqs, function(x) x$max))
+      
+      list(
+        avg = 1/combined_avg,
+        min = 1/combined_max,
+        max = 1/combined_min,
+        buses_per_hour = combined_avg * 60
+      )
+    },
+    
+    calculate_combined_frequency_at_stop = function(bus_numbers, stop_code) {
+      valid_services <- list()
+      validation_results <- list()
+      
+      for (bus_no in bus_numbers) {
+        verification <- .self$verify_bus_at_stop(bus_no, stop_code)
+        validation_results[[bus_no]] <- verification
+        
+        if (verification$found) {
+          freq_data <- .self$get_service_frequency(bus_no)
+          if (!is.null(freq_data)) {
+            freq_data$direction <- verification$direction
+            valid_services[[length(valid_services) + 1]] <- freq_data
+          }
+        }
+      }
+      
+      if (length(valid_services) == 0) {
+        cat("\nDiagnostics for stop", stop_code, ":\n")
+        for (bus in names(validation_results)) {
+          vr <- validation_results[[bus]]
+          cat(bus, ":", ifelse(vr$found, 
+                               paste("Found in direction", vr$direction),
+                               "NOT found"), "\n")
+        }
+        return(NULL)
+      }
+      
+      combined <- list(
+        AM_Peak = .self$combine_period(valid_services, "AM_Peak"),
+        AM_Offpeak = .self$combine_period(valid_services, "AM_Offpeak"),
+        PM_Peak = .self$combine_period(valid_services, "PM_Peak"),
+        PM_Offpeak = .self$combine_period(valid_services, "PM_Offpeak"),
+        valid_buses = bus_numbers,
+        stop_code = stop_code,
+        directions = sapply(valid_services, function(x) x$direction)
+      )
+      
+      return(combined)
+    },
+    
+    print_stop_frequency = function(combined) {
+      cat("\n=== Combined Frequency at Stop:", combined$stop_code, "===\n")
+      cat("Buses:", paste(combined$valid_buses, collapse = ", "), "\n")
+      
+      periods <- list(
+        AM_Peak = "AM Peak (6:30-8:30)",
+        AM_Offpeak = "AM Offpeak (8:31-16:59)",
+        PM_Peak = "PM Peak (17:00-19:00)",
+        PM_Offpeak = "PM Offpeak (after 19:00)"
+      )
+      
+      for (period in names(periods)) {
+        pdata <- combined[[period]]
+        if (!is.na(pdata$avg)) {
+          cat(periods[[period]], ":\n")
+          cat("  Average wait time:", round(pdata$avg, 1), "minutes\n")
+          cat("  Wait time range:", round(pdata$min, 1), "-", round(pdata$max, 1), "minutes\n")
+          cat("  Effective buses/hour:", round(pdata$buses_per_hour, 1), "\n")
+          
+          lambda <- 1/pdata$avg
+          wait_times <- c(2, 5, 10)
+          probs <- 1 - exp(-lambda * wait_times)
+          cat("  Probability of bus arriving within:\n")
+          for (i in seq_along(wait_times)) {
+            cat(sprintf("    %d minutes: %.1f%%\n", wait_times[i], probs[i]*100))
+          }
+          cat("\n")
+        }
+      }
+    },
+    
+    get_all_bus_stops = function() {
+      url <- paste0(.self$base_url, "BusStops")
+      response <- GET(url, add_headers(AccountKey = .self$api_key))
+      content <- content(response, "text", encoding = "UTF-8")
+      fromJSON(content)$value
+    }
+  )
+)
 
-#conver postal to lat and long
+#usage
+bus_analyzer <- BusFrequencyAnalyzer$new(api_key = "o6OuJxI3Re+qYgFQzb+4+w==")
+
+#convert postal to lat and long
 get_coordinates_from_postal <- function(postal_code) {
   # Authenticate with OneMap API
   auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
@@ -79,8 +278,21 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  self$analyzer <- analyzer
                                },
                                
-                               get_route_data = function(start, end, routeType = "pt", date, time, 
+                               get_route_data = function(start, end, routeType = "pt", date, time_period, 
                                                          mode = "TRANSIT", maxWalkDistance, numItineraries = 3) {
+                                 
+                                 # Define time periods and corresponding representative times
+                                 time_periods <- list(
+                                   "Morning Peak (6:30-8:30am)" = "07:30:00",
+                                   "Evening Peak (5-7pm)" = "18:00:00",
+                                   "Daytime Off-Peak (8:30am-5pm)" = "12:00:00",
+                                   "Nighttime Off-Peak (7pm-6:30am)" = "20:00:00"
+                                 )
+                                 
+                                 
+                                 # Get the representative time for the selected period
+                                 time <- time_periods[[time_period]]
+                                 
                                  # Define API endpoint
                                  base_url <- "https://www.onemap.gov.sg/api/public/routingsvc/route"
                                  
@@ -386,11 +598,20 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                },
                                
                               
-                               calculate_route_options_service_quality = function(routes, departure_time) {
+                               calculate_route_options_service_quality = function(routes, time_period) {
                                  if (is.null(self$analyzer)) {
                                    stop("Bus frequency analyzer not provided")
                                  }
                                  
+                                 # Map your time periods to the analyzer's time periods
+                                 analyzer_period <- switch(time_period,
+                                                           "Morning Peak (6:30-8:30am)" = "AM_Peak",
+                                                           "Evening Peak (5-7pm)" = "PM_Peak",
+                                                           "Daytime Off-Peak (8:30am-5pm)" = "AM_Offpeak",
+                                                           "Nighttime Off-Peak (7pm-6:30am)" = "PM_Offpeak",
+                                                          NA  # default if no match
+                                 )
+                                   
                                  # Calculate scores for all available routes (up to 3)
                                  route_scores <- sapply(1:length(routes$legs), function(i) {
                                    # Extract bus numbers and modes for this route
@@ -398,23 +619,9 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                                                                    routes$legs[[i]]$mode == "BUS"])
                                    has_subway <- "SUBWAY" %in% routes$legs[[i]]$mode
                                    
-                                   # Determine time period (same for all routes)
-                                   time_parts <- as.numeric(strsplit(departure_time, ":")[[1]])
-                                   departure_min <- time_parts[1] * 60 + time_parts[2]
-                                   
-                                   time_period <- if (departure_min >= 6.5*60 && departure_min < 8.5*60) {
-                                     "AM_Peak"
-                                   } else if (departure_min >= 17*60 && departure_min < 19*60) {
-                                     "PM_Peak"
-                                   } else if (departure_min >= 6.5*60 && departure_min < 17*60) {
-                                     "AM_Offpeak"
-                                   } else {
-                                     "PM_Offpeak"
-                                   }
-                                   
                                    # Calculate MRT score if route includes subway
                                    mrt_score <- if (has_subway) {
-                                     if (time_period %in% c("AM_Peak", "PM_Peak")) {
+                                     if (analyzer_period %in% c("AM_Peak", "PM_Peak")) {
                                        20  # 5-7 minutes during peak
                                      } else {
                                        80  # 2-3 minutes during off-peak
@@ -431,7 +638,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      if (length(freq_data) == 0) return(0)
                                      
                                      # Calculate combined wait time for buses
-                                     avg_waits <- sapply(freq_data, function(x) x[[time_period]]$avg)
+                                     avg_waits <- sapply(freq_data, function(x) x[[analyzer_period]]$avg)
                                      avg_waits <- avg_waits[!is.na(avg_waits)]
                                      if (length(avg_waits) == 0) return(0)
                                      
@@ -450,7 +657,6 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    
                                    # Combine MRT and bus scores (weighted by presence)
                                    if (has_subway && length(bus_numbers) > 0) {
-                                     # If route has both, average the scores
                                      mean(c(mrt_score, bus_score))
                                    } else if (has_subway) {
                                      mrt_score
@@ -477,7 +683,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  max(0, min(100, round(final_score)))
                                },
                                
-                               calculate_rqs = function(start, end, date, time, maxWalkDistance = 1000,
+                               calculate_rqs = function(start, end, date, time_period, maxWalkDistance = 1000,
                                                          weights = c(transport = 0.25, comfort = 0.25, 
                                                           robustness = 0.25, service = 0.25)) {
                                
@@ -486,7 +692,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    start = start,
                                    end = end,
                                    date = date,
-                                   time = time,
+                                   time_period = time_period,
                                    maxWalkDistance = maxWalkDistance
                                  )
                                  
@@ -504,7 +710,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      comfort = round(self$calculate_comfort_score(routes_metrics)),
                                      robustness = self$calculate_robustness_score(fixed_sequences, routes),
                                      service = if (!is.null(self$analyzer)) {
-                                       self$calculate_route_options_service_quality(routes, time)
+                                       self$calculate_route_options_service_quality(routes, time_period)
                                      } else {
                                        warning("Service quality score not calculated - no bus analyzer provided")
                                        0
@@ -537,7 +743,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                
                                
                                
-                               calculate_multiple_rqs = function(starts, end, date, time, maxWalkDistance = 1000,
+                               calculate_multiple_rqs = function(starts, end, date, time_period, maxWalkDistance = 1000,
                                                                  weights = c(transport = 0.25, comfort = 0.25, 
                                                                              robustness = 0.25, service = 0.25)) {
                                  
@@ -551,7 +757,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      start = start,
                                      end = end_coord,
                                      date = date,
-                                     time = time,
+                                     time_period = time_period,
                                      maxWalkDistance = maxWalkDistance,
                                      weights = weights
                                    )
@@ -605,10 +811,10 @@ route_analyzer <- RouteAnalyzer$new(
 
 #calculate RQS with the equal weights on all components
 results <- route_analyzer$calculate_multiple_rqs(
-  starts = c("520702", "551234", "528523"),  # Postal codes
-  end = "118420",                            # Single destination
+  starts = c("520702", "551234", "528523"),
+  end = "118420",
   date = "03-24-2025",
-  time = "07:35:00"
+  time_period = "Morning Peak (6:30-8:30am)"  # Using time period instead of specific time
 )
 print(results$summary)  # Summary table of all routes
 
@@ -660,59 +866,9 @@ print(results_2$summary)
 
 
 
-# Function to get station crowd density forecast
-get_station_crowd_forecast <- function(train_line, api_key) {
-  # API endpoint
-  url <- "https://datamall2.mytransport.sg/ltaodataservice/PCDForecast"
-  
-  # Make API request
-  response <- GET(
-    url = url,
-    add_headers(AccountKey = api_key),
-    query = list(TrainLine = train_line)
-  )
-  
-  # Check response status
-  if (status_code(response) == 200) {
-    # Parse JSON response
-    content <- content(response, as = "text", encoding = "UTF-8")
-    data <- fromJSON(content)
-    
-    # Convert to data frame
-    df <- as.data.frame(data)
-    
-    # Clean up column names
-    names(df) <- gsub("^value\\.", "", names(df))
-    
-    return(df)
-  } else {
-    stop(paste("API request failed with status code:", status_code(response)))
-  }
-}
 
-# Your LTA DataMall API key (replace with your actual key)
-api_key <- "o6OuJxI3Re+qYgFQzb+4+w=="  # Get this from LTA DataMall
 
-# Example usage for North-South Line
-train_line <- "NSL"  # Can change to "EWL", "DTL", etc.
 
-# Get the forecast data
-crowd_data <- get_station_crowd_forecast(train_line, api_key)
-
-# View the first few rows
-head(crowd_data)
-
-# Create a summary table by station
-library(dplyr)
-crowd_summary <- crowd_data %>%
-  group_by(Station, CrowdLevel) %>%
-  summarise(Count = n(), .groups = "drop") %>%
-  arrange(Station, CrowdLevel)
-
-# View the summary
-print(crowd_summary)
-#get NS1
-crowd_data$Stations[[1]]$Interval[[1]]
 
 
 

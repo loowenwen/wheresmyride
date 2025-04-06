@@ -138,20 +138,60 @@ shinyUI(
     # --- BTO Transport Comparison ---
     tabPanel("BTO Transport Comparison", value = "compare",
              sidebarLayout(
-               sidebarPanel(style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
-                            selectInput("bto_a_postal", "Select BTO A:", choices = c("Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)", "Geylang Meadow (389001)", "Queenstown Beacon (149752)")),
-                            selectInput("bto_b_postal", "Select BTO B:", choices = c("Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)", "Geylang Meadow (389001)", "Queenstown Beacon (149752)")),
-                            textInput("workplace_compare", "Enter Workplace Postal Code:", value = "", placeholder = "e.g., 018989"),
-                            selectInput("transport_mode_compare", "Select Transport Mode:", choices = c("Bus", "MRT", "Mixed")),
-                            actionButton("compare_commute", "Estimate Commute Time", class = "btn-primary", style = "width: 100%;"),
-                            hr(),
-                            h4("Estimated Commute Time"),
-                            tableOutput("commute_table_compare")
+               sidebarPanel(
+                 style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
+                 
+                 selectInput("bto_a_postal", "Select BTO A:", choices = c(
+                   "Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)",
+                   "Geylang Meadow (389001)", "Queenstown Beacon (149752)"
+                 )),
+                 selectInput("bto_b_postal", "Select BTO B:", choices = c(
+                   "Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)",
+                   "Geylang Meadow (389001)", "Queenstown Beacon (149752)"
+                 )),
+                 selectInput("bto_c_postal", "Select BTO C:", choices = c(
+                   "Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)",
+                   "Geylang Meadow (389001)", "Queenstown Beacon (149752)"
+                 )),
+                 selectInput("bto_d_postal", "Select BTO D:", choices = c(
+                   "Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)",
+                   "Geylang Meadow (389001)", "Queenstown Beacon (149752)"
+                 )),
+                 
+                 tags$hr(),
+                 tags$h4(
+                   tagList(
+                     "Preferred Travel Time",
+                     HTML('&nbsp;'),
+                     tags$i(
+                       class = "fas fa-circle-question text-muted",
+                       style = "cursor: pointer;",
+                       title = "Choose when you usually commute. This affects how frequent and crowded the transport options are.",
+                       `data-bs-toggle` = "tooltip",
+                       `data-bs-placement` = "right"
+                     )
+                   )
+                 ),
+                 radioButtons("bto_travel_time_pref", label = NULL,
+                                    choices = c(
+                                      "AM Peak (630 - 830am)" = "AM_peak",
+                                      "AM Off-Peak (8.31am - 4.59pm)" = "AM_offpeak",
+                                      "PM Peak (5–7pm)" = "PM_peak",
+                                      "PM Off-Peak (7pm onwards)" = "PM_offpeak"
+                                    ),
+                                    selected = "AM_peak"
+                 )
                ),
+               
+               
                mainPanel(
                  fluidRow(
-                   column(6, h4("Radar Chart: BTO A"), plotlyOutput("radar_a"), h5("Human Review for BTO A"), verbatimTextOutput("bto_a_review")),
-                   column(6, h4("Radar Chart: BTO B"), plotlyOutput("radar_b"), h5("Human Review for BTO B"), verbatimTextOutput("bto_b_review"))
+                   column(6, h4("Radar Chart: BTO A"), plotlyOutput("radar_a")),
+                   column(6, h4("Radar Chart: BTO B"), plotlyOutput("radar_b"))
+                 ),
+                 fluidRow(
+                   column(6, h4("Radar Chart: BTO C"), plotlyOutput("radar_c")),
+                   column(6, h4("Radar Chart: BTO D"), plotlyOutput("radar_d"))
                  )
                )
              )

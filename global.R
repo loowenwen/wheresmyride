@@ -27,3 +27,10 @@ mrt_station_density <- bind_rows(
   mrt_station_density,
   data.frame(pln_area_n = missing_pln_areas, n = 0)
 )
+
+#read in bto data
+bto_data <- read.csv("data/BTO_projects.csv", stringsAsFactors = FALSE)
+bto_choices <- paste0(bto_data$Town, " (", bto_data$Region, ")")
+bto_choices <- unique(bto_choices)
+names(bto_choices) <- bto_choices
+

@@ -141,22 +141,10 @@ shinyUI(
                sidebarPanel(
                  style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
                  
-                 selectInput("bto_a_postal", "Select BTO A:", choices = c(
-                   "Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)",
-                   "Geylang Meadow (389001)", "Queenstown Beacon (149752)"
-                 )),
-                 selectInput("bto_b_postal", "Select BTO B:", choices = c(
-                   "Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)",
-                   "Geylang Meadow (389001)", "Queenstown Beacon (149752)"
-                 )),
-                 selectInput("bto_c_postal", "Select BTO C:", choices = c(
-                   "Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)",
-                   "Geylang Meadow (389001)", "Queenstown Beacon (149752)"
-                 )),
-                 selectInput("bto_d_postal", "Select BTO D:", choices = c(
-                   "Northshore Edge (820123)", "Fernvale Vines (792456)", "Tengah Parkview (688901)",
-                   "Geylang Meadow (389001)", "Queenstown Beacon (149752)"
-                 )),
+                 selectInput("bto_a_postal", "Select BTO A:", choices = bto_choices),
+                 selectInput("bto_b_postal", "Select BTO B:", choices = bto_choices),
+                 selectInput("bto_c_postal", "Select BTO C:", choices = bto_choices),
+                 selectInput("bto_d_postal", "Select BTO D:", choices = bto_choices),
                  
                  tags$hr(),
                  tags$h4(

@@ -135,7 +135,7 @@ shinyUI(
                tabPanel(
                  "Travel Reach & Nearby Transport", value = "commute",
                  h3("Isochrone Visualization", style = "font-size: 24px; font-weight: bold; font-family: 'Times New Roman', serif; color: #023047;"),
-                 leafletOutput("t2_isochrone_map", height = 500)
+                 leafletOutput("t4_isochrone_map", height = 500)
                )
     ),
     
@@ -161,49 +161,136 @@ shinyUI(
              )
     ),
     
-    # --- BTO Transport Comparison ---
+    # --- Transport Access Dashboard ---
     tabPanel("Transport Access Dashboard", value = "insights",
              sidebarLayout(
-               sidebarPanel(style = "background-color: #F8F9FA; font-family: 'Times New Roman', serif; color: #023047;",
-                            h4("User Inputs", style = "font-size: 18px; font-weight: bold;"),
-                            textInput("t2_postal_code", "Enter Postal Code:", placeholder = "e.g., 123456"),
-                            actionButton("t2_accessibility_score", "Get Accessibility Score"),
-                            h4("Customize Accessibility Model", style = "font-size: 18px; font-weight: bold; margin-top: 20px;"),
-                            sliderInput("t2_travel_time", "Max Travel Time to MRT (mins):", min = 0, max = 60, value = 15, step = 1),
-                            sliderInput("t2_walking_distance", "Max Walking Distance (m):", min = 0, max = 1000, value = 400, step = 10),
-                            sliderInput("t2_waiting_time", "Max Waiting Time (mins):", min = 1, max = 60, value = 5, step = 1),
-                            selectInput("t2_transport_type", "Preferred Transport Mode:", choices = c("MRT", "Bus", "MRT & Bus")),
-                            actionButton("t2_recalculate", "Recalculate with New Settings")
-               ),
-               mainPanel(
-                 div(id = "nestedTabs",
-                     tabsetPanel(
-                       tabPanel("Accessibility Score",
-                                div(class = "score-section", style = "font-family: 'Times New Roman', serif; color: #023047;",
-                                    h3("Overall Accessibility Score", style = "font-size: 24px; font-weight: bold;"),
-                                    uiOutput("t2_dynamic_score_display"),
-                                    uiOutput("t2_score_interpretation")
-                                ),
-                                br(),
-                                fluidRow(
-                                  column(3, metric_box("\ud83d\ude86 MRT Score", "t2_mrt_score", color = "#ffb703")),
-                                  column(3, metric_box("\ud83d\ude8c Bus Score", "t2_bus_score", color = "#ffb703")),
-                                  column(3, metric_box("\ud83d\udeb6 Walkability", "t2_walk_score", color = "#ffb703")),
-                                  column(3, metric_box("\u23f3 Congestion", "t2_congestion_score", color = "#ffb703"))
-                                ),
-                                fluidRow(
-                                  column(7, h3("Travel Time to Key Locations", style = "font-size: 24px; font-weight: bold; font-family: 'Times New Roman', serif;"), 
-                                         tableOutput("t2_key_location_times")),
-                                  column(5, h3("Nearest Bus Stops and MRT Stations", style = "font-size: 24px; font-weight: bold; font-family: 'Times New Roman', serif;"),
-                                         tableOutput("t2_nearest_bus_mrt"))
-                                )
-                       ),
+               sidebarPanel(
+                 h4(tagList(icon("location-dot", lib = "font-awesome"), " Location Input"), style = "font-weight: bold"),
+                 textInput("t4_postal_code", "Enter Postal Code:", placeholder = "e.g., 123456"),
+                 actionButton("t4_get_score", "Get Accessibility Score", icon = icon("search")),
+                 
+                 hr(),
+                 h4(tagList(icon("gears", lib = "font-awesome"), " Customize Accessibility Model"), style = "font-weight: bold"),
+                 
+                 tags$div(
+                   class = "form-group",
+                   tags$label(
+                     "Nearby Radius (meters)",
+                     HTML('&nbsp;'),
+                     tags$i(
+                       class = "fas fa-circle-question text-muted",
+                       style = "cursor: pointer;",
+                       title = "Set the maximum distance you're willing to walk to reach MRT stations or bus stops. This determines which nearby options are included when calculating the component scores.",
+                       `data-bs-toggle` = "tooltip",
+                       `data-bs-placement` = "right"
                      )
+                   ),
+                   numericInput("t4_nearby_radius", label = NULL, value = 500, min = 100, max = 2000, step = 50)
+                 ),
+                 
+                 tags$div(
+                   class = "form-group",
+                   tags$label(
+                     "Preferred Travel Time",
+                     HTML('&nbsp;'),
+                     tags$i(
+                       class = "fas fa-circle-question text-muted",
+                       style = "cursor: pointer;",
+                       title = "Choose when you usually commute. This helps assess how crowded buses and trains are at that time.",
+                       `data-bs-toggle` = "tooltip",
+                       `data-bs-placement` = "right"
+                     )
+                   ),
+                   checkboxGroupInput("t4_travel_time_preference", label = NULL,
+                                      choices = c(
+                                        "AM Peak (6–9am)" = "AM_peak",
+                                        "AM Off-Peak (5am & 9am–5pm)" = "AM_offpeak",
+                                        "PM Peak (5–7pm)" = "PM_peak",
+                                        "PM Off-Peak (7pm–2am)" = "PM_offpeak"
+                                      ),
+                                      selected = "AM_peak")
+                 ),
+                 
+                 tags$h5(
+                   class = "fw-bold",
+                   tagList(
+                     "Accessibility Score Weights",
+                     HTML('&nbsp;'),  # spacing
+                     tags$i(
+                       class = "fas fa-circle-question text-muted",
+                       style = "cursor: pointer;",
+                       title = "By default, each component (MRT, Bus, Walkability, Congestion) contributes 25% to the overall score. You can adjust these weights based on what matters most to you.",
+                       `data-bs-toggle` = "tooltip",
+                       `data-bs-placement` = "right"
+                     )
+                   )
+                 ),
+                 helpText("You can adjust how much each factor matters to you. The app will automatically normalize the weights."),
+                 sliderInput("t4_mrt", "MRT Importance", min = 0, max = 100, value = 25),
+                 sliderInput("t4_bus", "Bus Importance", min = 0, max = 100, value = 25),
+                 sliderInput("t4_walk", "Walkability Importance", min = 0, max = 100, value = 25),
+                 sliderInput("t4_congestion", "Congestion Importance", min = 0, max = 100, value = 25),
+                 
+                 actionButton("t4_recalculate", "Recalculate with New Settings", icon = icon("sync")),
+               ),
+               
+               mainPanel(
+                 # --- Overall Score Section ---
+                 h3(
+                   tagList(icon("traffic-light", lib = "font-awesome"), " Overall Accessibility Score"),
+                   class = "fw-bold"
+                 ),
+                 uiOutput("t4_score_display"),
+                 uiOutput("t4_score_interpretation"),
+                 br(),
+                 
+                 # --- Component Scores Section ---
+                 h4(
+                   tagList(icon("magnifying-glass", lib = "font-awesome"), " Component Scores"),
+                   class = "fw-bold"
+                 ),
+                 fluidRow(
+                   column(3,
+                          h5(tagList(icon("train-subway", lib = "font-awesome"), " MRT Score")),
+                          uiOutput("t4_mrt_score")
+                   ),
+                   column(3,
+                          h5(tagList(icon("bus-simple", lib = "font-awesome"), " Bus Score")),
+                          uiOutput("t4_bus_score")
+                   ),
+                   column(3,
+                          h5(tagList(icon("person-walking", lib = "font-awesome"), " Walkability Score")),
+                          uiOutput("t4_walk_score")
+                   ),
+                   column(3,
+                          h5(tagList(icon("hourglass", lib = "font-awesome"), " Congestion Score")),
+                          uiOutput("t4_congestion_score")
+                   )
+                 ),
+                 br(),
+                 
+                 
+                 # --- Travel Details Section ---
+                 h3(
+                   tagList(icon("clock", lib = "font-awesome"), "Travel Details"),
+                   class = "fw-bold"
+                 ),
+                 fluidRow(
+                   column(
+                     7,
+                     h4("Travel Time to Key Locations", class = "fw-bold"),
+                     tableOutput("t4_key_location_times")
+                   ),
+                   column(
+                     5,
+                     h4("Nearest Bus Stops and MRT Stations", class = "fw-bold"),
+                     tableOutput("t4_nearest_bus_mrt")
+                   )
                  )
                )
              )
     ),
-    
+
     # --- Project Information ---
     tabPanel("Project Information",
              fluidPage(
@@ -320,7 +407,8 @@ shinyUI(
       tags$head(
         tags$style(HTML("body { font-family: 'Times New Roman', serif; } 
                         h1, h2, h3, h4, h5, h6, p, div, span { font-family: 'Times New Roman', Times, serif; }")),
-        )
+        ),
+        tags$script(HTML("$(function () {$('[data-bs-toggle=\"tooltip\"]').tooltip();})"))
     )
   )
 )

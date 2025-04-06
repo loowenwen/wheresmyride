@@ -12,8 +12,45 @@ library(tidyverse)
 shinyServer(function(input, output, session) {
   useShinyjs()
   
-  # ==== TAB 1: Location Overview & Density Maps ====
+  # ==== Home Tab ====
+  # --- Dummy Data for BTO Locations ---
+  bto_dummy <- data.frame(
+    project_name = c("Tampines North Grove", "Woodlands Spring", "Bukit Batok Vista"),
+    lat = c(1.3700, 1.4370, 1.3480),
+    lng = c(103.9400, 103.7860, 103.7490),
+    launch_date = c("Jun 2025", "Sep 2025", "Dec 2025")
+  )
   
+  # --- Render BTO Map -- 
+  output$bto_map <- renderLeaflet({
+    leaflet(bto_dummy) %>%
+      addProviderTiles(providers$CartoDB.Positron) %>%
+      addMarkers(
+        ~lng, ~lat,
+        popup = ~paste0("<b>", project_name, "</b><br>Launch Date: ", launch_date)
+      ) %>%
+      setView(lng = 103.8198, lat = 1.3521, zoom = 11)
+  })
+  
+  # --- Navigation Logic ---
+  observeEvent(input$go_heatmap, {
+    updateTabsetPanel(session, "mainTabs", selected = "heatmap")
+  })
+  observeEvent(input$go_commute, {
+    updateTabsetPanel(session, "mainTabs", selected = "commute")
+  })
+  observeEvent(input$go_compare, {
+    updateTabsetPanel(session, "mainTabs", selected = "compare")
+  })
+  observeEvent(input$go_insights, {
+    updateTabsetPanel(session, "mainTabs", selected = "insights")
+  })
+  observeEvent(input$go_to_map, {
+    updateTabsetPanel(session, "mainTabs", selected = "commute")
+  })
+  
+  
+  # ==== TAB 1: Location Overview & Density Maps ====
   observeEvent(input$search_location, {
     output$location_map <- renderLeaflet({
       leaflet() %>%
@@ -58,8 +95,45 @@ shinyServer(function(input, output, session) {
       )
   })
   
-  # ==== TAB 2: Accessibility Analysis ====
+  # ==== TAB 2: Comparing BTO Estates ====
   
+  observeEvent(input$compare_commute, {
+    output$commute_table_compare <- renderTable({
+      data.frame(
+        Metric = c("Estimated Commute (mins)", "Distance (km)"),
+        `BTO A` = c(sample(30:60, 1), round(runif(1, 5, 15), 1)),
+        `BTO B` = c(sample(25:55, 1), round(runif(1, 4, 12), 1))
+      )
+    })
+    
+    output$radar_a <- renderPlotly({
+      plot_ly(
+        type = 'scatterpolar',
+        r = c(80, 75, 85, 90, 70, 80),
+        theta = c("Accessibility", "Commute Time", "Bus Connectivity", "MRT Proximity", "Walkability", "Accessibility"),
+        fill = 'toself', name = "BTO A"
+      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
+    })
+    
+    output$radar_b <- renderPlotly({
+      plot_ly(
+        type = 'scatterpolar',
+        r = c(65, 70, 60, 55, 80, 65),
+        theta = c("Accessibility", "Commute Time", "Bus Connectivity", "MRT Proximity", "Walkability", "Accessibility"),
+        fill = 'toself', name = "BTO B"
+      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
+    })
+    
+    output$bto_a_review <- renderText({
+      paste("BTO A (", input$bto_a_postal, ") shows strong MRT and walkability scores.")
+    })
+    
+    output$bto_b_review <- renderText({
+      paste("BTO B (", input$bto_b_postal, ") has shorter commute but weaker MRT access.")
+    })
+  })
+  
+  # ==== TAB 2: Accessibility Analysis ====
   # --- State Management ---
   postal_code <- reactiveVal(NULL)
   initial_calculation <- reactiveVal(FALSE)
@@ -73,13 +147,13 @@ shinyServer(function(input, output, session) {
   )
   
   # --- Reactive State Observers ---
-  observeEvent(input$t2_postal_code, {
-    postal_code(input$t2_postal_code)
+  observeEvent(input$t4_postal_code, {
+    postal_code(input$t4_postal_code)
     initial_calculation(FALSE)
     recalculated(FALSE)
   })
   
-  observeEvent(input$t2_accessibility_score, {
+  observeEvent(input$t4_accessibility_score, {
     req(postal_code())
     initial_calculation(TRUE)
     recalculated(FALSE)
@@ -90,31 +164,31 @@ shinyServer(function(input, output, session) {
     current_settings$transport_type <- "MRT & Bus"
   })
   
-  observeEvent(input$t2_recalculate, {
+  observeEvent(input$t4_recalculate, {
     req(postal_code(), initial_calculation())
     
     if (
-      current_settings$travel_time != input$t2_travel_time ||
-      current_settings$walking_distance != input$t2_walking_distance ||
-      current_settings$waiting_time != input$t2_waiting_time ||
-      current_settings$transport_type != input$t2_transport_type
+      current_settings$travel_time != input$t4_travel_time ||
+      current_settings$walking_distance != input$t4_walking_distance ||
+      current_settings$waiting_time != input$t4_waiting_time ||
+      current_settings$transport_type != input$t4_transport_type
     ) {
       recalculated(TRUE)
       
-      current_settings$travel_time <- input$t2_travel_time
-      current_settings$walking_distance <- input$t2_walking_distance
-      current_settings$waiting_time <- input$t2_waiting_time
-      current_settings$transport_type <- input$t2_transport_type
+      current_settings$travel_time <- input$t4_travel_time
+      current_settings$walking_distance <- input$t4_walking_distance
+      current_settings$waiting_time <- input$t4_waiting_time
+      current_settings$transport_type <- input$t4_transport_type
     }
   })
   
   active_settings <- reactive({
     if (recalculated()) {
       list(
-        travel_time = input$t2_travel_time,
-        walking_distance = input$t2_walking_distance,
-        waiting_time = input$t2_waiting_time,
-        transport_type = input$t2_transport_type
+        travel_time = input$t4_travel_time,
+        walking_distance = input$t4_walking_distance,
+        waiting_time = input$t4_waiting_time,
+        transport_type = input$t4_transport_type
       )
     } else if (initial_calculation()) {
       list(
@@ -187,14 +261,14 @@ shinyServer(function(input, output, session) {
   })
   
   # --- Render Outputs for Accessibility Score UI ---
-  output$t2_dynamic_score_display <- renderUI({
+  output$t4_dynamic_score_display <- renderUI({
     if (!initial_calculation()) return(div(style = "font-size: 48px; font-weight: bold; color: #666;", "00.0"))
     score <- accessibility_scores()$overall
     color <- case_when(score >= 80 ~ "#2ecc71", score >= 60 ~ "#f39c12", TRUE ~ "#e74c3c")
     div(style = paste0("font-size: 48px; font-weight: bold; color: ", color, ";"), score)
   })
   
-  output$t2_score_interpretation <- renderUI({
+  output$t4_score_interpretation <- renderUI({
     if (!initial_calculation()) {
       return(div(style = "font-size: 16px; margin-top: 10px; color: #666;",
                  "Enter a postal code and click 'Get Accessibility Score' to see results"))
@@ -210,17 +284,17 @@ shinyServer(function(input, output, session) {
     div(style = "font-size: 16px; margin-top: 10px;", text)
   })
   
-  output$t2_mrt_score        <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$mrt })
-  output$t2_bus_score        <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$bus })
-  output$t2_walk_score       <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$walk })
-  output$t2_congestion_score <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$congestion })
+  output$t4_mrt_score        <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$mrt })
+  output$t4_bus_score        <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$bus })
+  output$t4_walk_score       <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$walk })
+  output$t4_congestion_score <- renderText({ if (!initial_calculation()) "00.0" else accessibility_scores()$congestion })
   
-  output$t2_key_location_times <- renderTable({
+  output$t4_key_location_times <- renderTable({
     if (!initial_calculation()) return(data.frame(Note = "Click 'Get Accessibility Score' to see travel times"))
     key_locations()
   })
   
-  output$t2_nearest_bus_mrt <- renderTable({
+  output$t4_nearest_bus_mrt <- renderTable({
     if (!initial_calculation()) return(data.frame(Note = "Click 'Get Accessibility Score' to see nearby transport options"))
     
     transport <- nearest_transport()
@@ -236,7 +310,7 @@ shinyServer(function(input, output, session) {
     bind_rows(bus_df, mrt_df) %>% arrange(Distance)
   })
   
-  output$t2_isochrone_map <- renderLeaflet({
+  output$t4_isochrone_map <- renderLeaflet({
     map <- leaflet() %>%
       addTiles() %>%
       setView(lng = 103.8198, lat = 1.3521, zoom = 12)
@@ -252,79 +326,23 @@ shinyServer(function(input, output, session) {
     map
   })
   
-  # ==== TAB 3: Comparing BTO Estates ====
+  # --- 
+  output$t4_mrt_title <- renderText({ "🚆 MRT Score" })
+  output$t4_bus_title <- renderText({ "🚌 Bus Score" })
+  output$t4_walk_title <- renderText({ "🚶 Walkability" })
+  output$t4_congestion_title <- renderText({ "⏳ Congestion" })
   
-  observeEvent(input$compare_commute, {
-    output$commute_table_compare <- renderTable({
-      data.frame(
-        Metric = c("Estimated Commute (mins)", "Distance (km)"),
-        `BTO A` = c(sample(30:60, 1), round(runif(1, 5, 15), 1)),
-        `BTO B` = c(sample(25:55, 1), round(runif(1, 4, 12), 1))
-      )
-    })
-    
-    output$radar_a <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(80, 75, 85, 90, 70, 80),
-        theta = c("Accessibility", "Commute Time", "Bus Connectivity", "MRT Proximity", "Walkability", "Accessibility"),
-        fill = 'toself', name = "BTO A"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
-    
-    output$radar_b <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(65, 70, 60, 55, 80, 65),
-        theta = c("Accessibility", "Commute Time", "Bus Connectivity", "MRT Proximity", "Walkability", "Accessibility"),
-        fill = 'toself', name = "BTO B"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
-    
-    output$bto_a_review <- renderText({
-      paste("BTO A (", input$bto_a_postal, ") shows strong MRT and walkability scores.")
-    })
-    
-    output$bto_b_review <- renderText({
-      paste("BTO B (", input$bto_b_postal, ") has shorter commute but weaker MRT access.")
-    })
+  output$t4_mrt_score <- renderText({ "85" })
+  output$t4_bus_score <- renderText({ "78" })
+  output$t4_walk_score <- renderText({ "92" })
+  output$t4_congestion_score <- renderText({ "65" })
+  
+  observeEvent(input$reset_weights, {
+    updateSliderInput(session, "w_mrt", value = 25)
+    updateSliderInput(session, "w_bus", value = 25)
+    updateSliderInput(session, "w_walk", value = 25)
+    updateSliderInput(session, "w_congestion", value = 25)
   })
   
-  # --- Home Tab ---
-  # dummy data for BTO locations
-  bto_dummy <- data.frame(
-    project_name = c("Tampines North Grove", "Woodlands Spring", "Bukit Batok Vista"),
-    lat = c(1.3700, 1.4370, 1.3480),
-    lng = c(103.9400, 103.7860, 103.7490),
-    launch_date = c("Jun 2025", "Sep 2025", "Dec 2025")
-  )
-  
-  # render BTO map
-  output$bto_map <- renderLeaflet({
-    leaflet(bto_dummy) %>%
-      addProviderTiles(providers$CartoDB.Positron) %>%
-      addMarkers(
-        ~lng, ~lat,
-        popup = ~paste0("<b>", project_name, "</b><br>Launch Date: ", launch_date)
-      ) %>%
-      setView(lng = 103.8198, lat = 1.3521, zoom = 11)
-  })
-  
-  # navigation logic
-  observeEvent(input$go_heatmap, {
-    updateTabsetPanel(session, "mainTabs", selected = "heatmap")
-  })
-  observeEvent(input$go_commute, {
-    updateTabsetPanel(session, "mainTabs", selected = "commute")
-  })
-  observeEvent(input$go_compare, {
-    updateTabsetPanel(session, "mainTabs", selected = "compare")
-  })
-  observeEvent(input$go_insights, {
-    updateTabsetPanel(session, "mainTabs", selected = "insights")
-  })
-  observeEvent(input$go_to_map, {
-    updateTabsetPanel(session, "mainTabs", selected = "commute")
-  })
   
 })

@@ -96,21 +96,12 @@ shinyServer(function(input, output, session) {
   })
   
   # ==== TAB 2: Comparing BTO Estates ====
-  
-  observeEvent(input$compare_commute, {
-    output$commute_table_compare <- renderTable({
-      data.frame(
-        Metric = c("Estimated Commute (mins)", "Distance (km)"),
-        `BTO A` = c(sample(30:60, 1), round(runif(1, 5, 15), 1)),
-        `BTO B` = c(sample(25:55, 1), round(runif(1, 4, 12), 1))
-      )
-    })
-    
+  observe({
     output$radar_a <- renderPlotly({
       plot_ly(
         type = 'scatterpolar',
-        r = c(80, 75, 85, 90, 70, 80),
-        theta = c("Accessibility", "Commute Time", "Bus Connectivity", "MRT Proximity", "Walkability", "Accessibility"),
+        r = c(80, 75, 85, 90, 80),
+        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
         fill = 'toself', name = "BTO A"
       ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
     })
@@ -118,20 +109,31 @@ shinyServer(function(input, output, session) {
     output$radar_b <- renderPlotly({
       plot_ly(
         type = 'scatterpolar',
-        r = c(65, 70, 60, 55, 80, 65),
-        theta = c("Accessibility", "Commute Time", "Bus Connectivity", "MRT Proximity", "Walkability", "Accessibility"),
+        r = c(65, 70, 60, 80, 65),
+        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
         fill = 'toself', name = "BTO B"
       ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
     })
     
-    output$bto_a_review <- renderText({
-      paste("BTO A (", input$bto_a_postal, ") shows strong MRT and walkability scores.")
+    output$radar_c <- renderPlotly({
+      plot_ly(
+        type = 'scatterpolar',
+        r = c(72, 68, 77, 88, 72),
+        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
+        fill = 'toself', name = "BTO C"
+      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
     })
     
-    output$bto_b_review <- renderText({
-      paste("BTO B (", input$bto_b_postal, ") has shorter commute but weaker MRT access.")
+    output$radar_d <- renderPlotly({
+      plot_ly(
+        type = 'scatterpolar',
+        r = c(55, 60, 58, 75, 55),
+        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
+        fill = 'toself', name = "BTO D"
+      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
     })
   })
+  
   
   # ==== TAB 2: Accessibility Analysis ====
   # --- State Management ---

@@ -3,79 +3,57 @@ library(dplyr)
 library(httr)
 library(jsonlite)
 library(igraph)
+library(sf)
 
-# AUTHENTICATION
-
-# define API endpoint for authentication
-auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
-
-# define email and password 
-email <- "loowenwen1314@gmail.com"
-password <- "sochex-6jobge-fomsYb"
-
-# create JSON payload
-auth_body <- list(
-  email = email,
-  password = password
-)
-
-# make API request
-response <- POST(
-  url = auth_url,
-  body = auth_body,
-  encode = "json"
-)
-
-# check response status
-if (status_code(response) == 200) {
-  # parse JSON response
-  result <- content(response, as = "text", encoding = "UTF-8")
-  data <- fromJSON(result)
+# 1. AUTHENTICATION FUNCTION ----
+get_auth_token <- function(email, password) {
+  auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
+  response <- POST(
+    url = auth_url,
+    body = list(email = email, password = password),
+    encode = "json"
+  )
   
-  # extract token and store it as an environment variable
-  token <- data$access_token
-  Sys.setenv(ONEMAP_TOKEN = token)
-  
-} else {
-  print(paste("Error:", status_code(response)))
+  if (status_code(response) == 200) {
+    content(response)$access_token
+  } else {
+    stop(paste("Authentication failed:", status_code(response)))
+  }
 }
 
+token <- get_auth_token("loowenwen1314@gmail.com", "sochex-6jobge-fomsYb")
 
 
-#Setting up the dataframe which will help to create the nodes
-mrt_nodes <- mrt_station_codes_locations %>%
-  select(
-    id = stn_code,
-    name = station_name,
-    longitude,
-    latitude,
-    mrt_line = mrt_line_english
+#2. PREPARE TRANSPORT NODES
+prepare_transport_nodes <- function(mrt_data, bus_data) {
+  bind_rows(
+    mrt_data %>% transmute(
+      id = stn_code,
+      name = mrt_station,
+      longitude = centroid_lon,
+      latitude = centroid_lat,
+      node_type = "train",
+      line = mrt_line
+    ),
+    bus_data %>% transmute(
+      id = as.character(BusStopCode),
+      name = Description,
+      longitude = Longitude,
+      latitude = Latitude,
+      node_type = "bus",
+      line = NA_character_
+    )
   ) %>%
-  mutate(
-    node_type = "train")
+    distinct(id, .keep_all = TRUE) %>%
+    st_drop_geometry() %>%
+    select(-geometry)
+}
+
+transport_nodes <- prepare_transport_nodes(mrt_lrt, bus_stops)
 
 
-bus_nodes <- bus_stops_final %>%
-  select(
-    id = bus_stop_number,
-    name = bus_stop_name,
-    longitude,
-    latitude
-  ) %>%
-  mutate(
-    node_type = "bus",
-    id = as.character(id))
 
-transport_nodes <- bind_rows(
-  mrt_nodes,
-  bus_nodes
-) 
-
-transport_nodes <- transport_nodes %>%
-  distinct(id, .keep_all = TRUE)
-
-
-# Function to get route data from API call
+# 3. GENERATING THE ROUTE SEQUENCES
 get_route_data <- function(start, end, routeType = "pt", date, time, mode = "TRANSIT", maxWalkDistance, numItineraries = 3, authToken) {
   # Define API endpoint
   base_url <- "https://www.onemap.gov.sg/api/public/routingsvc/route"
@@ -119,17 +97,6 @@ get_route_data <- function(start, end, routeType = "pt", date, time, mode = "TRA
     return(NULL)
   }
 }
-
-#usage: input any start or end coordinates
-route <- get_route_data(
-  start = "1.30374,103.83214", #orchard
-  end = "1.294178,103.7698", #kent ridge terminal 
-  date = "03-24-2025",
-  time = "07:35:00",
-  maxWalkDistance = 1000,
-  authToken = token
-)
-
 
 ##generate all route sequences function - since our api can generate up to 3 itineraries 
 generate_all_route_sequences <- function(api_response) {
@@ -278,15 +245,23 @@ fix_mrt_sequences <- function(route_sequences) {
   lapply(route_sequences, fix_single_route)
 }
 
-# Fixed routes
+
+#usage: input any start or end coordinates
+route <- get_route_data(
+  start = "1.30374,103.83214", #orchard
+  end = "1.294178,103.7698", #kent ridge terminal 
+  date = "03-24-2025",
+  time = "07:35:00",
+  maxWalkDistance = 1000,
+  authToken = token
+)
 route_sequences <- fix_mrt_sequences(generate_all_route_sequences(route$legs))
 
 
 
+##GRAPH CONSTRUCTION 
 
-##CREATE NODES
-
-##also handles missing nodes in transport nodes by using placeholder values to not exclude them from dataset
+#Node:##also handles missing nodes in transport nodes by using placeholder values to not exclude them from dataset
 get_route_nodes <- function(route_sequence, transport_nodes) {
   # Ensure IDs are character type and remove leading/trailing spaces
   transport_nodes <- transport_nodes %>%
@@ -302,8 +277,8 @@ get_route_nodes <- function(route_sequence, transport_nodes) {
     known_nodes <- transport_nodes %>% filter(id %in% route_sequence)
     
     # Estimate missing nodes' locations using the mean of known nodes
-    estimated_lat <- mean(known_nodes$lat, na.rm = TRUE)
-    estimated_lon <- mean(known_nodes$lon, na.rm = TRUE)
+    estimated_lat <- mean(known_nodes$latitude, na.rm = TRUE)
+    estimated_lon <- mean(known_nodes$longitude, na.rm = TRUE)
     
     # Create placeholder nodes
     placeholder_nodes <- data.frame(
@@ -326,7 +301,7 @@ get_route_nodes <- function(route_sequence, transport_nodes) {
 }
 
 
-##CREATE EDGES: for now i added dummy time weights and transfer penalties because I haven't figured out where time weights and transfer penalities come from the api_response
+#edges: for now i added dummy time weights and transfer penalties because I haven't figured out where time weights and transfer penalities come from the api_response
 create_route_edges <- function(route_nodes) {
   # Ensure route_nodes is ordered correctly
   route_nodes <- route_nodes %>% arrange(route_position)
@@ -349,13 +324,6 @@ create_route_edges <- function(route_nodes) {
         TRUE ~ "mode_transfer"
       ),
       
-      # Dummy time weights (in minutes) - ##to do later: come up with time_weight by calculating distance and estimating time?
-      time_weight = case_when(
-        segment_type == "bus_route" ~ 2.5 * runif(n(), 0.7, 1.3),
-        segment_type == "mrt_line" ~ 1.8 * runif(n(), 0.7, 1.3),
-        segment_type == "mode_transfer" ~ 4.0 * runif(n(), 0.7, 1.3)
-      ),
-      
       # Transfer penalties
       transfer_penalty = case_when(
         segment_type == "mode_transfer" & from_type == "bus" ~ 3.0 * runif(n(), 0.8, 1.2),
@@ -363,8 +331,6 @@ create_route_edges <- function(route_nodes) {
         TRUE ~ 0
       ),
       
-      # Composite weight 
-      composite_weight = time_weight + transfer_penalty,
       
       # Sequence number
       sequence = row_number()
@@ -434,9 +400,205 @@ create_combined_transport_graph <- function(route_sequences, transport_nodes) {
 }
 
 
-# Usage:
-transport_graph <- create_combined_transport_graph(route_sequences, transport_nodes)
-route_edges <- transport_graph$edges
+extract_route_metrics <- function(itinerary) {
+  tibble(
+    duration = itinerary$duration / 60, # Convert to minutes
+    walkTime = itinerary$walkTime / 60,
+    transitTime = itinerary$transitTime / 60,
+    waitingTime = itinerary$waitingTime / 60,
+    transfers = itinerary$transfers
+  )
+}
+
+
+##USAGE:
+route_metrics <- extract_route_metrics(route) %>% mutate(route_name = names(route_sequences))
+
+#gives a tibble of the information of each of the 3 routes (total duration, walkTime, transitTime, waitingTime, transfer)
+transport_graph <- create_combined_transport_graph(route_sequences, transport_nodes) #puts it all into a graph
+
+
+
+##Route Vulnerability Analysis
+
+
+
+##Optimal Route Function based on user preferences
+optimize_routes <- function(route_sequences, route_metrics, user_prefs) {
+  # Create a route info dataframe
+  route_info <- tibble(
+    route_name = names(route_sequences),
+    route_id = seq_along(route_sequences),
+    num_stops = sapply(route_sequences, length),
+    route_sequence = route_sequences
+  ) %>%
+    left_join(route_metrics, by = "route_name")
+  
+  # Normalize metrics (0-1 where 1 is best)
+  metrics_to_normalize <- c("duration", "walkTime", "transfers", "waitingTime")
+  
+  normalized <- route_info %>%
+    mutate(across(all_of(metrics_to_normalize), 
+                  ~ 1 - (.x - min(.x)) / (max(.x) - min(.x)),
+                  .names = "norm_{.col}"))
+  
+  # Calculate weighted score based on user preferences
+  recommendations <- normalized %>%
+    mutate(
+      score = (user_prefs$time_weight * norm_duration) +
+        (user_prefs$walk_weight * norm_walkTime) +
+        (user_prefs$transfer_weight * norm_transfers) +
+        (user_prefs$wait_weight * norm_waitingTime),
+      
+      # Convert to percentage and rank
+      score_pct = round(score * 100),
+      rank = dense_rank(desc(score))
+    ) %>%
+    arrange(rank) %>%
+    select(route_name, rank, score_pct, duration, walkTime, transfers, waitingTime, route_sequence)
+  
+  # Calculate importance of each factor for explanation
+  factor_importance <- tibble(
+    factor = c("Trip Time", "Walking", "Transfers", "Waiting"),
+    weight = c(user_prefs$time_weight, 
+               user_prefs$walk_weight,
+               user_prefs$transfer_weight,
+               user_prefs$wait_weight),
+    importance = round(weight / sum(weight) * 100)
+  )
+  
+  return(list(
+    recommendations = recommendations,
+    factor_importance = factor_importance,
+    optimal_route = recommendations$route_sequence[1]
+  ))
+}
+
+# Example for Jane (real estate agent)
+jane_prefs <- list(
+  time_weight = 0.4,    # Total trip time importance
+  walk_weight = 0.3,    # Walking time importance
+  transfer_weight = 0.1, # Transfer aversion
+  wait_weight = 0.2     # Waiting time aversion
+)
+
+results <- optimize_routes(
+  route_sequences = route_sequences,
+  route_metrics = route_metrics,
+  user_prefs = jane_prefs
+)
+
+# View results
+print(results$recommendations)
+
+# See why factors were weighted
+print(results$factor_importance)
+
+# Get the optimal route sequence
+print(results$optimal_route)
+
+
+
+analyze_route_vulnerability <- function(transport_graph, route_sequences) {
+  # Input validation
+  if (!is.igraph(transport_graph$graph)) stop("Input must be an igraph object")
+  if (!is.list(route_sequences)) stop("route_sequences must be a list")
+  
+  vulnerability_results <- purrr::map_dfr(names(route_sequences), function(route_id) {
+    # Get all edges for this route
+    route_edges <- E(transport_graph$graph)[E(transport_graph$graph)$route_name == route_id]
+    
+    # Skip if no edges found (invalid route)
+    if (length(route_edges) == 0) return(NULL)
+    
+    # 1. Extract route nodes and subgraph
+    route_nodes <- unique(as.vector(igraph::ends(transport_graph$graph, route_edges)))
+    subgraph <- igraph::induced_subgraph(transport_graph$graph, route_nodes)
+    
+    # 2. Calculate centrality measures
+    edge_betweenness <- igraph::edge_betweenness(subgraph, directed = TRUE)
+    node_betweenness <- igraph::betweenness(subgraph)
+    
+    # 3. Find alternative paths
+    route_start <- route_sequences[[route_id]][1]
+    route_end <- route_sequences[[route_id]][length(route_sequences[[route_id]])]
+    
+    alt_paths <- tryCatch({
+      igraph::all_simple_paths(
+        transport_graph$graph,
+        from = route_start,
+        to = route_end,
+        mode = "out"
+      )
+    }, error = function(e) list()) # Return empty list if path finding fails
+    
+    # 4. Calculate metrics
+    tibble::tibble(
+      route = route_id,
+      critical_nodes = list(names(sort(node_betweenness, decreasing = TRUE)[1:3])),
+      worst_edge = ifelse(length(edge_betweenness) > 0,
+                          names(which.max(edge_betweenness)),
+                          NA_character_),
+      path_redundancy = max(0, length(alt_paths) - 1), # Ensure non-negative
+      avg_centrality = ifelse(length(edge_betweenness) > 0,
+                              mean(edge_betweenness),
+                              NA_real_),
+      vulnerability_score = ifelse(length(edge_betweenness) > 0,
+                                   (max(edge_betweenness) * 0.6) + (0.4 * (1 / max(1, length(alt_paths)))),
+                                   NA_real_)
+    )
+  })
+  
+  # Remove NULL results from invalid routes
+  vulnerability_results <- dplyr::filter(vulnerability_results, !is.null(route))
+  
+  return(vulnerability_results)
+}
+
+vulnerability_results <- analyze_route_vulnerability(
+  transport_graph = transport_graph,
+  route_sequences = route_sequences
+)
+
+print(vulnerability_results)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#TRANSPORT MODE DIVERSITY INDEX:
+calculate_mode_diversity <- function(graph_data, origin_node) {
+# Get all edges from origin
+edges <- incident_edges(graph_data$graph, origin_node, mode = "out")[[1]]
+
+# Count unique transport modes
+modes <- unique(E(graph_data$graph)$segment_type[edges])
+
+# Calculate diversity score (normalized 0-1)
+max_possible_modes <- length(unique(E(graph_data$graph)$segment_type))
+diversity_score <- length(modes) / max_possible_modes
+
+return(diversity_score)
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -465,170 +627,64 @@ calculate_pta_score <- function(route_graph, route_edges) {
   return(pta_score)
 }
 
-# Helper function for frequency score
-calculate_frequency_score <- function(route_edges) {
-  # This should use actual frequency data from your API
-  route_edges %>%
-    mutate(
-      wait_time = case_when(
-        segment_type == "bus_route" ~ 5,  # Example: average bus wait time
-        segment_type == "mrt_line" ~ 3,   # Example: average MRT wait time
-        TRUE ~ 0
-      ),
-      freq_score = pmax(10 - wait_time, 0)
-    ) %>%
-    pull(freq_score) %>%
-    mean()
-}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-##SOME PLOTTING TO SEE (not very refined yet but just to check)
-
-library("igraph")
-# Plot the combined graph
-plot(transport_graph$graph, 
-     main = "Combined Transport Network", 
-     vertex.size = 5,   # Control the size of the nodes
-     vertex.label.cex = 0.7,  # Control the size of the labels
-     vertex.color = "skyblue", # Node color
-     edge.arrow.size = 0.5, # Control arrow size for directed edges
-     edge.width = 1,  # Control edge width
-     layout = layout_with_fr)  # Force-directed layout for better aesthetics
-
-
-
-# Adjust node size based on degree (number of connections)
-node_degree <- degree(transport_graph$graph)
-plot(transport_graph$graph,
-     main = "Combined Transport Network",
-     vertex.size = node_degree * 2,  # Larger nodes for higher degree
-     vertex.label.cex = 0.7,
-     vertex.color = "lightgreen",
-     edge.arrow.size = 0.5,
-     edge.width = 1,
-     layout = layout_with_fr)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-##CREATE ROUTE SEQUENCE VECTOR (VECTOR WITH BUS STOP CODES AND MRT STOP CODES)
-mode <- as.list(api_response[[1]]$mode) #list of the modes of transport involved 
-route <- as.list(api_response[[1]]$route[api_response[[1]]$route != ""]) #list of all the buses and train lines that are involved
-from_to_stops <- api_response[[1]]$from$stopCode[!is.na(api_response[[1]]$from$stopCode)] #every two element is the first and last transit stop of one leg of the route
-
-generate_route_sequence <- function(api_response, from_to_stops, mode) {
-  route_sequence <- c("Origin")
-  from_to_index <- 1
-  intermediate_index <- 1
   
-  for (i in seq_along(mode)) {
-    current_mode <- mode[[i]]
-    
-    # Skip pure walking segments (except first/last)
-    if (current_mode == "WALK" && i != 1 && i != length(mode)) next
-    
-    # Add starting point of this leg
-    if (from_to_index <= length(from_to_stops)) {
-      route_sequence <- c(route_sequence, from_to_stops[from_to_index])
-      from_to_index <- from_to_index + 1
-    }
-    
-    # Add intermediates for even-indexed stops (2nd, 4th, 6th)
-    if (current_mode != "WALK" && intermediate_index %% 2 == 0) {
-      if (length(api_response[[1]]$intermediateStops) >= intermediate_index) {
-        intermediates <- api_response[[1]]$intermediateStops[[intermediate_index]]$stopCode
-        if (!is.null(intermediates) && length(intermediates) > 0) {
-          route_sequence <- c(route_sequence, intermediates)
-        }
-      }
-    }
-    
-    # Add ending point of this leg if it's not the last transportation segment
-    if (current_mode != "WALK" && i < length(mode) - 1 && from_to_index <= length(from_to_stops)) {
-      route_sequence <- c(route_sequence, from_to_stops[from_to_index])
-      from_to_index <- from_to_index + 1
-    }
-    
-    intermediate_index <- intermediate_index + 1
-  }
-  
-  # Add final destination
-  route_sequence <- c(route_sequence, "Destination")
-  
-  return(route_sequence)
-}
 
 
 
 
-##my manual interpretation of generating the route sequence vector
-route_seq1 <- c(
-  "Origin",
-  from_to_stops[1], # First bus stop
-  api_response[[1]]$intermediateStops[[2]]$stopCode,#intermediate bus stop codes of first bus 
-  from_to_stops[2], # Last bus stop of first bus 
-  from_to_stops[3], # First MRT stop
-  api_response[[1]]$intermediateStops[[4]]$stopCode, # MRT intermediates of first mrt line 
-  from_to_stops[4], #last mrt stop
-  from_to_stops[5], #first bus stop
-  api_response[[1]]$intermediateStops[[6]]$stopCode,# intermediates of bus stop codes of second bus
-  from_to_stops[6],
-  "Destination"
-)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -157,15 +157,6 @@ saveRDS(bus_with_planning, file = "data/RDS Files/bus_with_planning.rds")
 
 
 # load RDS objects
-planning_areas <- 
-  readRDS("data/RDS Files/planning_area_polygons.rds")
 
-bus_stops <- 
-  readRDS("data/RDS Files/bus_stops.rds")
-bus_with_planning <- 
-  readRDS("data/RDS Files/bus_with_planning.rds")
 
-mrt_stations <-
-  readRDS("data/RDS Files/mrt_stations.rds")
-mrt_with_planning <- 
-  readRDS("data/RDS Files/mrt_with_planning.rds")
+

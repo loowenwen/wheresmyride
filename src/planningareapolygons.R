@@ -107,3 +107,8 @@ leaflet(data = planning_areas) %>%
     fillOpacity = 0.4,
     label = ~pln_area_n
   )
+
+readRDS("data/RDS Files/planning_area_polygons.RDS")
+bus_stops <- readRDS("data/RDS Files/bus_with_planning.RDS")
+mrt_lrt <- readRDS("data/RDS Files/mrt_stations.RDS")
+

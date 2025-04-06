@@ -202,7 +202,7 @@ BusFrequencyAnalyzer <- setRefClass(
 )
 
 #usage
-analyzer <- BusFrequencyAnalyzer$new(api_key = "o6OuJxI3Re+qYgFQzb+4+w==")
+bus_analyzer <- BusFrequencyAnalyzer$new(api_key = "o6OuJxI3Re+qYgFQzb+4+w==")
 
 #First test case
 test_stop <- "01419"  # Orchard Station
@@ -245,10 +245,7 @@ housing_options <- list(
 comparison_results <- analyzer$compare_housing_options(housing_options)
 analyzer$print_comparison(comparison_results)
 
-
-
-stop_info <- analyzer$get_all_bus_stops() %>% 
-  filter(BusStopCode == "75131")
+stop_info <- analyzer$get_all_bus_services()
 
 if (nrow(stop_info) == 0) {
   cat("Stop 75131 doesn't exist in the database\n")
@@ -258,4 +255,8 @@ if (nrow(stop_info) == 0) {
 
 
 
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(lubridate)
 

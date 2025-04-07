@@ -33,10 +33,27 @@ mrt_station_density <- bind_rows(
 )
 
 #read in bto data
-bto_data <- readRDS("data/RDS files/upcoming_bto.rds")
-bto_choices <- paste0(bto_data$town, " (", bto_data$region, ")")
-bto_choices <- unique(bto_choices)
-names(bto_choices) <- bto_choices
+upcoming_bto$Start <- sprintf("%.7f,%.8f", upcoming_bto$lat, upcoming_bto$lng)
+
+# Named vector: names = labels shown, values = Start (lat,lng)
+bto_choices <- as.list(setNames(
+  paste0(sprintf("%.7f", upcoming_bto$lat), ",", sprintf("%.8f", upcoming_bto$lng)),
+  paste0(upcoming_bto$town, " (", upcoming_bto$region, ")")
+))
+
+source("src/RouteQualityScore.R") 
+
+if (exists("results") && !is.null(results$summary)) {
+  rqs_summary <- results$summary %>%
+    mutate(
+      lat = as.numeric(sub(",.*", "", Start)),
+      lng = as.numeric(sub(".*,", "", Start)),
+      Start = sprintf("%.7f,%.8f", lat, lng)
+    )
+} else {
+  stop("Route Quality Score (results$summary) data is missing or not loaded.")
+}
+
 
 
 # ==== Tab Two ====

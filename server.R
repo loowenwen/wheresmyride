@@ -176,46 +176,47 @@ shinyServer(function(input, output, session) {
 
     
   # ==== TAB 3: Comparing BTO Estates ====
-  observe({
-    output$radar_a <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(80, 75, 85, 90, 80),
-        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-        fill = 'toself', name = "BTO A"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
+  render_radar_chart_by_coords <- function(coord_string) {
+    bto_scores <- rqs_summary %>%
+      filter(Start == coord_string)
     
-    output$radar_b <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(65, 70, 60, 80, 65),
-        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-        fill = 'toself', name = "BTO B"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
+    if (nrow(bto_scores) == 0) return(NULL)
     
-    output$radar_c <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(72, 68, 77, 88, 72),
-        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-        fill = 'toself', name = "BTO C"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
-    
-    output$radar_d <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(55, 60, 58, 75, 55),
-        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-        fill = 'toself', name = "BTO D"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
+    plot_ly(
+      type = 'scatterpolar',
+      r = c(bto_scores$Transport, bto_scores$Comfort, bto_scores$Robustness, bto_scores$Service, bto_scores$Transport),
+      theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
+      fill = 'toself',
+      name = coord_string
+    ) %>%
+      layout(
+        polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))),
+        showlegend = FALSE
+      )
+  }
+  
+  
+  output$radar_a <- renderPlotly({
+    req(input$bto_a_postal)
+    render_radar_chart_by_coords(input$bto_a_postal)
   })
   
+  output$radar_b <- renderPlotly({
+    req(input$bto_b_postal)
+    render_radar_chart_by_coords(input$bto_b_postal)
+  })
   
+  output$radar_c <- renderPlotly({
+    req(input$bto_c_postal)
+    render_radar_chart_by_coords(input$bto_c_postal)
+  })
   
+  output$radar_d <- renderPlotly({
+    req(input$bto_d_postal)
+    render_radar_chart_by_coords(input$bto_d_postal)
+  })
+  
+
   # ==== TAB 4: Accessibility Dashboard ====
   # --- Reactive Values to Store Results ---
   accessibility_scores <- reactiveValues(

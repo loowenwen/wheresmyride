@@ -214,6 +214,8 @@ shinyUI(
                sidebarPanel(
                  h4(tagList(icon("location-dot", lib = "font-awesome"), " Location Input"), style = "font-weight: bold"),
                  textInput("t4_postal_code", "Enter Postal Code:", placeholder = "e.g., 123456"),
+                 selectInput("t4_bto_project", "Or Select a BTO Project:",
+                             choices = c("Select a BTO Project" = "", upcoming_bto$label)),
                  actionButton("t4_get_score", "Get Accessibility Score", icon = icon("search")),
                  
                  hr(),
@@ -432,19 +434,27 @@ shinyUI(
                br(),
                
                # --- Repository ---
-               h3(tagList(icon("laptop", lib = "font-awesome"), " Repository & Contact")),
-               p("This project is open source and the full source code is available on GitHub. You can also explore the live app online."),
-               
-               tags$ul(
-                 tags$li(
-                   tags$b(tagList(icon("github", lib = "font-awesome"), " GitHub Repository:")),
-                   tags$a(href = "https://github.com/loowenwen/wheresmyride", 
-                          "View on GitHub", target = "_blank")
+               fluidRow(
+                 column(8,
+                        h3(tagList(icon("laptop", lib = "font-awesome"), " Repository & Contact")),
+                        p("This project is open source and the full source code is available on GitHub. You can also explore the live app online."),
+                        
+                        tags$ul(
+                          tags$li(
+                            tags$b(tagList(icon("github", lib = "font-awesome"), " GitHub Repository:")),
+                            tags$a(href = "https://github.com/loowenwen/wheresmyride", 
+                                   "View on GitHub", target = "_blank")
+                          ),
+                          tags$li(
+                            tags$b(tagList(icon("external-link-alt", lib = "font-awesome"), " Live App (shinyapps.io):")),
+                            tags$a(href = "https://loowenwen.shinyapps.io/wheresmyride/", 
+                                   "Launch Where's My Ride", target = "_blank")
+                          )
+                        )
                  ),
-                 tags$li(
-                   tags$b(tagList(icon("external-link-alt", lib = "font-awesome"), " Live App (shinyapps.io):")),
-                   tags$a(href = "https://loowenwen.shinyapps.io/wheresmyride/", 
-                          "Launch Where's My Ride", target = "_blank")
+                 column(4,
+                        tags$div(
+                          img(src = "black_logo.png", width = "100%", style = "margin-bottom: 10px;"))
                  )
                ),
                br(),

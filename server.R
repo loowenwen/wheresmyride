@@ -46,7 +46,7 @@ shinyServer(function(input, output, session) {
     updateTabsetPanel(session, "mainTabs", selected = "insights")
   })
   observeEvent(input$go_to_map, {
-    updateTabsetPanel(session, "mainTabs", selected = "commute")
+    updateTabsetPanel(session, "mainTabs", selected = "insights")
   })
   
   
@@ -217,6 +217,40 @@ shinyServer(function(input, output, session) {
   
   
   # ==== TAB 4: Accessibility Dashboard ====
+  # If user types in postal code, clear BTO selection
+  observeEvent(input$t4_postal_code, {
+    if (nzchar(input$t4_postal_code)) {
+      updateSelectInput(session, "t4_bto_project", selected = "")
+    }
+  })
+  
+  # If user selects a BTO project, clear postal code
+  observeEvent(input$t4_bto_project, {
+    if (!is.null(input$t4_bto_project) && input$t4_bto_project != "") {
+      updateTextInput(session, "t4_postal_code", value = "")
+    }
+  })
+  
+  # Determine source of coordinates (postal code or selected BTO)
+  get_selected_coords <- reactive({
+    if (!is.null(input$t4_postal_code) && input$t4_postal_code != "") {
+      coords <- tryCatch({
+        get_coords_from_postal(input$t4_postal_code)
+      }, error = function(e) {
+        showNotification("Invalid postal code.", type = "error")
+        return(NULL)
+      })
+      return(coords)
+    } 
+    else if (!is.null(input$t4_bto_project)) {
+      bto_row <- upcoming_bto %>% filter(label == input$t4_bto_project)
+      if (nrow(bto_row) > 0) {
+        return(c(bto_row$lng, bto_row$lat))
+      }
+    }
+    return(NULL)
+  })
+  
   # --- Reactive Values to Store Results ---
   accessibility_scores <- reactiveValues(
     overall_score = NULL,

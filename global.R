@@ -4,7 +4,7 @@ library(httr)
 library(jsonlite)
 library(sf)
 
-# ---- Load Required Spatial Data ----
+# ---- Load Required Data ----
 data_dir <- "data/RDS Files"
 
 planning_areas <- readRDS(file.path(data_dir, "planning_area_polygons.rds"))
@@ -12,34 +12,13 @@ bus_with_planning <- readRDS(file.path(data_dir, "bus_with_planning.rds"))
 mrt_with_planning <- readRDS(file.path(data_dir, "mrt_with_planning.rds"))
 upcoming_bto <- readRDS(file.path(data_dir, "upcoming_bto.rds"))
 
-# ---- Compute Density Tables ----
-
-# Bus stop density by planning area
-bus_stop_density <- bus_with_planning %>% 
-  st_drop_geometry() %>%
-  count(pln_area_n)
-
-# MRT station density by planning area
-mrt_station_density <- mrt_with_planning %>% 
-  st_drop_geometry() %>%
-  count(pln_area_n)
-
-# Fill in planning areas that are missing MRT stations with zero counts
-missing_pln_areas <- setdiff(planning_areas$pln_area_n, mrt_station_density$pln_area_n)
-
-mrt_station_density <- bind_rows(
-  mrt_station_density,
-  data.frame(pln_area_n = missing_pln_areas, n = 0)
-)
-
 #read in bto data
 bto_data <- readRDS("data/RDS files/upcoming_bto.rds")
 bto_choices <- paste0(bto_data$town, " (", bto_data$region, ")")
 bto_choices <- unique(bto_choices)
 names(bto_choices) <- bto_choices
 
-
-# ==== Tab Two ====
+# ==== Use of OneMap API (REUSABLE) ====
 # --- OneMap Authentication ---
 auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
 auth_body <- list(
@@ -81,6 +60,28 @@ get_coords_from_postal <- function(postal_code) {
   return(c(lng, lat))
 }
 
+
+# ==== Tab One ====
+# Bus stop density by planning area
+bus_stop_density <- bus_with_planning %>% 
+  st_drop_geometry() %>%
+  count(pln_area_n)
+
+# MRT station density by planning area
+mrt_station_density <- mrt_with_planning %>% 
+  st_drop_geometry() %>%
+  count(pln_area_n)
+
+# Fill in planning areas that are missing MRT stations with zero counts
+missing_pln_areas <- setdiff(planning_areas$pln_area_n, mrt_station_density$pln_area_n)
+
+mrt_station_density <- bind_rows(
+  mrt_station_density,
+  data.frame(pln_area_n = missing_pln_areas, n = 0)
+)
+
+
+# ==== Tab Two ====
 # --- Function: Generate Isochrone (Fast Buffer Approximation) ---
 generate_fast_isochrone <- function(center_lng, center_lat, duration_mins) {
   radius_m <- duration_mins * 333

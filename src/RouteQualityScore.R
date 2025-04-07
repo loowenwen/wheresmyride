@@ -6,7 +6,7 @@ library(httr)
 library(jsonlite)
 library(readr)
 
-BTO_projects <- read_csv("../data/BTO_projects.csv")
+upcoming_bto <- readRDS("../data/RDS Files/upcoming_bto.rds")
 
 BusFrequencyAnalyzer <- setRefClass(
   "BusFrequencyAnalyzer",

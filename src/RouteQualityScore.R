@@ -4,6 +4,14 @@ library(dplyr)
 library(purrr)
 library(httr)
 library(jsonlite)
+library(readr)
+
+upcoming_bto <- readRDS("../data/RDS Files/upcoming_bto.rds")
+combine_lat_lng <- function(lat_vector, lng_vector) {
+  sprintf("%.7f,%.8f", lat_vector, lng_vector)
+}
+combined_coords <- combine_lat_lng(upcoming_bto$lat, upcoming_bto$lng)
+
 
 BusFrequencyAnalyzer <- setRefClass(
   "BusFrequencyAnalyzer",
@@ -809,11 +817,10 @@ route_analyzer <- RouteAnalyzer$new(
   analyzer = bus_analyzer # Your initialized BusAnalyzer instance
 )
 
+
 #calculate RQS with the equal weights on all components
 results <- route_analyzer$calculate_multiple_rqs(
-  starts = c("1.2917806,103.81910559", "1.2930653,103.81608701", "1.3825971,103.7740129", 
-             "1.3169289,103.76270196", "1.4558945,103.81857284", 
-             "1.3411162,103.95980571","1.3392719,103.84212148", "1.4442599,103.78469873"),
+  starts = combined_coords,
   end = "118420",
   date = "03-24-2025",
   time_period = "Morning Peak (6:30-8:30am)"  # Using time period instead of specific time
@@ -821,22 +828,6 @@ results <- route_analyzer$calculate_multiple_rqs(
 print(results$summary)  # Summary table of all routes
 
 
-#calculate RQS with user chosen weights
-results_2 <- route_analyzer$calculate_multiple_rqs(
-  starts = c("520702", "551234", "528523"),  # Postal codes
-  end = "118420",                            # Single destination
-  date = "03-24-2025",
-  time = "07:35:00",
-  weights = c(transport_efficiency = 0.40, comfort = 0.10, 
-              robustness = 0.25, service = 0.25)
-)
-
-print(results_2$summary)
-
-
-
-library(readr)
-BTO_projects <- read_csv("../data/BTO_projects.csv")
 
 
 
@@ -858,61 +849,7 @@ BTO_projects <- read_csv("../data/BTO_projects.csv")
 
 
 
-get_routes_to_closest_mall <- function(postal_code, date, time_period, 
-                                       routeType = "pt", mode = "TRANSIT", 
-                                       maxWalkDistance = 1000, numItineraries = 3) {
-  
-  # 1. Find the closest mall
-  closest_mall <- find_closest_mall(postal_code)
-  
-  if (is.null(closest_mall)) {
-    stop("Failed to find closest mall")
-  }
-  
-  # 2. Prepare coordinates for routing
-  start_coord <- paste(closest_mall$search_coordinate, collapse = ",")
-  end_coord <- paste(closest_mall$mall_coordinate, collapse = ",")
-  
-  # 3. Get route data
-  routes <- route_analyzer$get_route_data(
-    start = start_coord,
-    end = end_coord,
-    routeType = routeType,
-    date = date,
-    time_period = time_period,
-    mode = mode,
-    maxWalkDistance = maxWalkDistance,
-    numItineraries = numItineraries
-  )
-  
-  if (is.null(routes)) {
-    stop("Failed to get route data")
-  }
-  
-  
-  return(routes)
-}
 
-
-result <- get_routes_to_closest_mall(
-  postal_code = "520702",
-  date = "2023-11-15",
-  time_period = "Morning Peak (6:30-8:30am)",
-  maxWalkDistance = 500)
-
-start_coord <- paste(closest_mall$search_coordinate, collapse = ",")
-end_coord <- paste(closest_mall$mall_coordinate, collapse = ",")
-
-route_analyzer$get_route_data(
-  start = start_coord,
-  end = end_coord,
-  routeType = "pt",
-  date = date,
-  time_period = "Morning Peak (6:30-8:30am)",
-  mode = mode,
-  maxWalkDistance = 1000,
-  numItineraries = numItineraries
-)
 
 
 

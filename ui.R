@@ -134,51 +134,27 @@ shinyUI(
                      h4(tagList(icon("location-dot", lib = "font-awesome"), " Location Input"), style = "font-weight: bold"),
                      textInput("t2_postal_code", "Enter Postal Code:",
                                placeholder = "e.g., 123456"),
+                     selectInput("t2_time", "Travel Time (minutes):", choices = c(5, 10, 15, 30, 45, 60), selected = 15),
                      actionButton("t2_show_commute_map", "Show Map", icon = icon("map-location-dot")),
-                     br(),
                    ),
                    
                    mainPanel(
                      h3(
-                       tagList(icon("traffic-light", lib = "font-awesome"), " Overall Accessibility Score"),
+                       tagList(icon("map", lib = "font-awesome"), " Isochrone Visualisation"),
                        class = "fw-bold"
                      ),
-                     uiOutput("t4_score_display"),
-                     uiOutput("t4_score_interpretation"),
                      tags$p(
                        class = "text-muted",
-                       "This score gives an overall measure of accessibility based on four key factors: MRT access, bus connectivity, walkability, and congestion. 
-                   Each factor contributes equally by default (25%), but you can adjust their importance based on your preferences on the left"
+                       "This map shows how far you can travel from your selected location within different time intervals by public transport. The shaded zones represent estimated reachable areas within 5, 10, 15, 30, 45 and 60 minutes of travel time.
+                       Use the input panel to enter your postal code and adjust the travel time range. The map will update to reflect your reachable area, helping you understand commuting convenience from your chosen location."
                      ),
-                     br(),
-                     
-                     # --- Travel Details Section ---
-                     h3(
-                       tagList(icon("clock", lib = "font-awesome"), "Travel Details"),
-                       class = "fw-bold"
-                     ),
-                     
-                     h3("Isochrone Visualization", 
-                        style = "font-size: 24px; font-weight: bold; font-family: 'Times New Roman', serif; color: #023047;"),
                      leafletOutput("t2_isochrone_map", height = 500),
                      br(),
-                     fluidRow(
-                       column(
-                         6,
-                         h4("Nearby MRT Stations", style = "color: #219EBC; font-weight: bold;"),
-                         tableOutput("t2_nearby_mrt_table")
-                       ),
-                       column(
-                         6,
-                         h4("Nearby Bus Stops", style = "color: #219EBC; font-weight: bold;"),
-                         tableOutput("t2_nearby_bus_table")
-                       )
-                     )
                    )
                  )
                )
-               
     ),
+                     
                
     # --- BTO Transport Comparison ---
     tabPanel("BTO Transport Comparison", value = "compare",

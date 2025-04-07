@@ -96,59 +96,59 @@ shinyServer(function(input, output, session) {
   })
   
   # ==== TAB 2: Isochrone Map ====
-  # Reactive values to store coordinates
-  user_location <- reactiveVal(NULL)
+  show_isochrone <- reactiveVal(FALSE)
+  output$t2_isochrone_map <- renderLeaflet({
+    leaflet() %>%
+      addTiles(
+        urlTemplate = "https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png",
+        attribution = '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" style="height:20px;width:20px;"/>&nbsp;<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener noreferrer">OneMap</a>&nbsp;&copy;&nbsp;contributors&nbsp;&#124;&nbsp;<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener noreferrer">Singapore Land Authority</a>'
+      ) %>%
+      setView(lng = 103.8198, lat = 1.3521, zoom = 12)
+  })
   
-  # Triggered when user clicks "Show Map"
   observeEvent(input$t2_show_commute_map, {
     req(input$t2_postal_code)
     
-    # --- Dummy Geocoding (replace with real API later) ---
-    # Simulate lat/lon for demo purposes
-    fake_coords <- list(lat = 1.3521, lon = 103.8198)
-    user_location(fake_coords)
-  })
-  
-  # Render isochrone map
-  output$t2_isochrone_map <- renderLeaflet({
-    loc <- user_location()
-    req(loc)
+    coords <- tryCatch({
+      get_coords_from_postal(input$t2_postal_code)
+    }, error = function(e) {
+      showNotification("Error retrieving coordinates. Please check postal code.", type = "error")
+      return(NULL)
+    })
     
-    leaflet() %>%
-      addTiles() %>%
-      setView(lng = loc$lon, lat = loc$lat, zoom = 13) %>%
-      addCircles(
-        lng = loc$lon, lat = loc$lat, radius = 3000,
-        color = "blue", fillOpacity = 0.2,
-        label = "15–45 min travel area (dummy)"
-      ) %>%
-      addMarkers(
-        lng = loc$lon, lat = loc$lat,
-        popup = paste("You are here:", input$postal_code)
-      )
+    req(coords)
+    lng <- coords[1]
+    lat <- coords[2]
+    
+    travel_time <- as.numeric(input$t2_time)
+    
+    isochrone_pts <- generate_fast_isochrone(lng, lat, duration_mins = travel_time)
+    
+    output$t2_isochrone_map <- renderLeaflet({
+      leaflet() %>%
+        addTiles(
+          urlTemplate = "https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png",
+          attribution = '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" style="height:20px;width:20px;"/>&nbsp;<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener noreferrer">OneMap</a>&nbsp;&copy;&nbsp;contributors&nbsp;&#124;&nbsp;<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener noreferrer">Singapore Land Authority</a>'
+        ) %>%
+        setView(lng = lng, lat = lat, zoom = 13) %>%
+        addMarkers(lng = lng, lat = lat, popup = paste("Postal Code:", input$t2_postal_code)) %>%
+        addPolygons(
+          lng = isochrone_pts$lon,
+          lat = isochrone_pts$lat,
+          fillColor = "2C7FB8",
+          fillOpacity = 0.25,
+          color = "045A8D",
+          weight = 1.5,
+          popup = paste("Area reachable within ", travel_time," minutes")
+        ) %>%
+        fitBounds(
+          lng1 = min(isochrone_pts$lon), lat1 = min(isochrone_pts$lat),
+          lng2 = max(isochrone_pts$lon), lat2 = max(isochrone_pts$lat)
+        )
+    })
   })
-  
-  # Dummy MRT station data
-  output$t2_nearby_mrt_table <- renderTable({
-    req(user_location())
-    data.frame(
-      Station = c("Ang Mo Kio", "Bishan", "Lorong Chuan"),
-      Line = c("NSL", "CCL", "CCL"),
-      Distance_km = c(0.5, 1.2, 2.1)
-    )
-  })
-  
-  # Dummy Bus stop data
-  output$t2_nearby_bus_table <- renderTable({
-    req(user_location())
-    data.frame(
-      Stop = c("Blk 123", "Opp AMK Hub", "Yio Chu Kang Int"),
-      Services = c("132, 165, 88", "54, 162", "72, 103"),
-      Distance_km = c(0.2, 0.7, 1.8)
-    )
-  })
-  
-  
+
+    
   # ==== TAB 3: Comparing BTO Estates ====
   observe({
     output$radar_a <- renderPlotly({

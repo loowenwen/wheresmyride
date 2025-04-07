@@ -96,7 +96,6 @@ shinyServer(function(input, output, session) {
   })
   
   # ==== TAB 2: Isochrone Map ====
-  show_isochrone <- reactiveVal(FALSE)
   output$t2_isochrone_map <- renderLeaflet({
     leaflet() %>%
       addTiles(
@@ -106,17 +105,44 @@ shinyServer(function(input, output, session) {
       setView(lng = 103.8198, lat = 1.3521, zoom = 12)
   })
   
+  # If user types in postal code, clear BTO selection
+  observeEvent(input$t2_postal_code, {
+    if (nzchar(input$t2_postal_code)) {
+      updateSelectInput(session, "t2_bto_project", selected = "")
+    }
+  })
+  
+  # If user selects a BTO project, clear postal code
+  observeEvent(input$t2_bto_project, {
+    if (!is.null(input$t2_bto_project) && input$t2_bto_project != "") {
+      updateTextInput(session, "t2_postal_code", value = "")
+    }
+  })
+  
+  # Determine source of coordinates (postal code or selected BTO)
+  get_selected_coords <- reactive({
+    if (!is.null(input$t2_postal_code) && input$t2_postal_code != "") {
+      coords <- tryCatch({
+        get_coords_from_postal(input$t2_postal_code)
+      }, error = function(e) {
+        showNotification("Invalid postal code.", type = "error")
+        return(NULL)
+      })
+      return(coords)
+    } 
+    else if (!is.null(input$t2_bto_project)) {
+      bto_row <- upcoming_bto %>% filter(label == input$t2_bto_project)
+      if (nrow(bto_row) > 0) {
+        return(c(bto_row$lng, bto_row$lat))
+      }
+    }
+    return(NULL)
+  })
+  
   observeEvent(input$t2_show_commute_map, {
-    req(input$t2_postal_code)
-    
-    coords <- tryCatch({
-      get_coords_from_postal(input$t2_postal_code)
-    }, error = function(e) {
-      showNotification("Error retrieving coordinates. Please check postal code.", type = "error")
-      return(NULL)
-    })
-    
+    coords <- get_selected_coords()
     req(coords)
+    
     lng <- coords[1]
     lat <- coords[2]
     

@@ -7,9 +7,10 @@ library(sf)
 # ---- Load Required Spatial Data ----
 data_dir <- "data/RDS Files"
 
-planning_areas     <- readRDS(file.path(data_dir, "planning_area_polygons.rds"))
-bus_with_planning  <- readRDS(file.path(data_dir, "bus_with_planning.rds"))
-mrt_with_planning  <- readRDS(file.path(data_dir, "mrt_with_planning.rds"))
+planning_areas <- readRDS(file.path(data_dir, "planning_area_polygons.rds"))
+bus_with_planning <- readRDS(file.path(data_dir, "bus_with_planning.rds"))
+mrt_with_planning <- readRDS(file.path(data_dir, "mrt_with_planning.rds"))
+upcoming_bto <- readRDS(file.path(data_dir, "upcoming_bto.rds"))
 
 # ---- Compute Density Tables ----
 

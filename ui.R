@@ -134,6 +134,8 @@ shinyUI(
                      h4(tagList(icon("location-dot", lib = "font-awesome"), " Location Input"), style = "font-weight: bold"),
                      textInput("t2_postal_code", "Enter Postal Code:",
                                placeholder = "e.g., 123456"),
+                     selectInput("t2_bto_project", "Or Select a BTO Project:",
+                                 choices = c("Select a BTO Project" = "", upcoming_bto$label)),
                      selectInput("t2_time", "Travel Time (minutes):", choices = c(5, 10, 15, 30, 45, 60), selected = 15),
                      actionButton("t2_show_commute_map", "Show Map", icon = icon("map-location-dot")),
                    ),

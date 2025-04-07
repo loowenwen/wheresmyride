@@ -168,7 +168,7 @@ json_text <- '[
 # parse the JSON
 bto_data <- fromJSON(json_text, flatten = TRUE)
 
-bto_df <- bto_list %>%
+bto_df <- bto_data %>%
   # split coordinates into lat/lng
   mutate(
     lat = as.numeric(str_extract(coordinates, "\\[\\s*(.*?)\\s*,") %>% str_remove_all("\\[|,")),
@@ -187,6 +187,11 @@ bto_df <- bto_list %>%
     town, flatType, lat, lng, launchStartDate, ballotQtr,
     maxRemainingLease, stage, distance, region, listingType
   )
+
+# create bto labels
+bto_df <- bto_df %>%
+  mutate(label = paste0(town, ": ", flatType)) %>%
+  select(label, everything())
 
 # view result
 print(bto_df)

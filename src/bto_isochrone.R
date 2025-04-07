@@ -45,7 +45,7 @@ library(dplyr)
 library(tidyr)
 
 # Read the CSV file
-bto_data <- read.csv("~/Downloads/BTO_projects.csv")
+bto_data <- read.csv("../data/BTO_projects.csv")
 
 # Remove brackets and extra spaces from 'Coordinates' column
 bto_data$Coordinates <- gsub("\\[|\\]|,", "", bto_data$Coordinates)  # Remove square brackets and commas

@@ -28,7 +28,7 @@ mrt_station_density <- bind_rows(
   data.frame(pln_area_n = missing_pln_areas, n = 0)
 )
 #read in from src 
-source("RouteQualityScore.R")
+source("src/RouteQualityScore.R")
 bus_analyzer <- BusFrequencyAnalyzer$new(api_key = "o6OuJxI3Re+qYgFQzb+4+w==")
 route_analyzer <- RouteAnalyzer$new(
   email = "loowenwen1314@gmail.com",

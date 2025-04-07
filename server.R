@@ -95,7 +95,61 @@ shinyServer(function(input, output, session) {
       )
   })
   
-  # ==== TAB 2: Comparing BTO Estates ====
+  # ==== TAB 2: Isochrone Map ====
+  # Reactive values to store coordinates
+  user_location <- reactiveVal(NULL)
+  
+  # Triggered when user clicks "Show Map"
+  observeEvent(input$t2_show_commute_map, {
+    req(input$t2_postal_code)
+    
+    # --- Dummy Geocoding (replace with real API later) ---
+    # Simulate lat/lon for demo purposes
+    fake_coords <- list(lat = 1.3521, lon = 103.8198)
+    user_location(fake_coords)
+  })
+  
+  # Render isochrone map
+  output$t2_isochrone_map <- renderLeaflet({
+    loc <- user_location()
+    req(loc)
+    
+    leaflet() %>%
+      addTiles() %>%
+      setView(lng = loc$lon, lat = loc$lat, zoom = 13) %>%
+      addCircles(
+        lng = loc$lon, lat = loc$lat, radius = 3000,
+        color = "blue", fillOpacity = 0.2,
+        label = "15–45 min travel area (dummy)"
+      ) %>%
+      addMarkers(
+        lng = loc$lon, lat = loc$lat,
+        popup = paste("You are here:", input$postal_code)
+      )
+  })
+  
+  # Dummy MRT station data
+  output$t2_nearby_mrt_table <- renderTable({
+    req(user_location())
+    data.frame(
+      Station = c("Ang Mo Kio", "Bishan", "Lorong Chuan"),
+      Line = c("NSL", "CCL", "CCL"),
+      Distance_km = c(0.5, 1.2, 2.1)
+    )
+  })
+  
+  # Dummy Bus stop data
+  output$t2_nearby_bus_table <- renderTable({
+    req(user_location())
+    data.frame(
+      Stop = c("Blk 123", "Opp AMK Hub", "Yio Chu Kang Int"),
+      Services = c("132, 165, 88", "54, 162", "72, 103"),
+      Distance_km = c(0.2, 0.7, 1.8)
+    )
+  })
+  
+  
+  # ==== TAB 3: Comparing BTO Estates ====
   observe({
     output$radar_a <- renderPlotly({
       plot_ly(

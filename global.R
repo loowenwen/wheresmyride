@@ -14,13 +14,6 @@ upcoming_bto <- readRDS(file.path(data_dir, "upcoming_bto.rds"))
 
 #read in bto data
 upcoming_bto$Start <- sprintf("%.7f,%.8f", upcoming_bto$lat, upcoming_bto$lng)
-
-# Named vector: names = labels shown, values = Start (lat,lng)
-bto_choices <- as.list(setNames(
-  paste0(sprintf("%.7f", upcoming_bto$lat), ",", sprintf("%.8f", upcoming_bto$lng)),
-  paste0(upcoming_bto$town, " (", upcoming_bto$region, ")")
-))
-
 source("src/RouteQualityScore.R") 
 
 if (exists("results") && !is.null(results$summary)) {

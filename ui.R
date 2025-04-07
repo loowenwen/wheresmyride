@@ -162,51 +162,84 @@ shinyUI(
     tabPanel("BTO Transport Comparison", value = "compare",
              sidebarLayout(
                sidebarPanel(
-                 style = "background-color: #F8F9FA; padding: 20px; border-radius: 10px;",
+                 h4(tagList(icon("location-dot", lib = "font-awesome"), " Location Input"), style = "font-weight: bold"),
                  
-                 selectInput("bto_a_postal", "Select BTO A:", choices = bto_choices),
-                 selectInput("bto_b_postal", "Select BTO B:", choices = bto_choices),
-                 selectInput("bto_c_postal", "Select BTO C:", choices = bto_choices),
-                 selectInput("bto_d_postal", "Select BTO D:", choices = bto_choices),
+                 selectInput("t3_bto_a", "Select BTO A:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
+                 selectInput("t3_bto_b", "Select BTO B:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
+                 selectInput("t3_bto_c", "Select BTO C:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
+                 selectInput("t3_bto_d", "Select BTO D:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
                  
-                 tags$hr(),
-                 tags$h4(
-                   tagList(
+                 textInput("t3_destionation_postal", "Enter Destination Postal Code:", placeholder = "e.g., 123456"),
+                 
+                 tags$div(
+                   class = "form-group",
+                   tags$label(
                      "Preferred Travel Time",
                      HTML('&nbsp;'),
                      tags$i(
                        class = "fas fa-circle-question text-muted",
                        style = "cursor: pointer;",
-                       title = "Choose when you usually commute. This affects how frequent and crowded the transport options are.",
+                       title = "Choose when you usually commute. This helps assess how crowded buses and trains are at that time.",
                        `data-bs-toggle` = "tooltip",
                        `data-bs-placement` = "right"
                      )
                    )
                  ),
-                 radioButtons("bto_travel_time_pref", label = NULL,
-                                    choices = c(
-                                      "AM Peak (630 - 830am)" = "AM_peak",
-                                      "AM Off-Peak (8.31am - 4.59pm)" = "AM_offpeak",
-                                      "PM Peak (5–7pm)" = "PM_peak",
-                                      "PM Off-Peak (7pm onwards)" = "PM_offpeak"
-                                    ),
-                                    selected = "AM_peak"
-                 )
+                 radioButtons("t3_travel_time_preference", label = NULL,
+                              choices = c(
+                                "AM Peak (6:30–8:30am)" = "AM_peak",
+                                "AM Off-Peak (8:31am–4:59pm)" = "AM_offpeak",
+                                "PM Peak (5–7pm)" = "PM_peak",
+                                "PM Off-Peak (7pm–)" = "PM_offpeak"
+                              ),
+                              selected = "AM_peak"
+                 ),
+                 
+                 actionButton("t3_get_comparison", "Get BTO Transport Route Comparison", icon = icon("search"))
                ),
                
-               
                mainPanel(
+                 h3(
+                   tagList(icon("chart-simple", lib = "font-awesome"), " Route Quality Score"),
+                   class = "fw-bold"
+                 ),
+                 
+                 h5("Understanding the Route Quality Factors"),
+                 tags$ul(
+                   tags$li(
+                     icon("tachometer-alt", lib = "font-awesome"), 
+                     tags$b(" Trip Speed: "), "How fast will I get there? ",
+                     tags$span("This measures overall travel time and route efficiency, favouring options that get you to your destination quicker.")
+                   ),
+                   tags$li(
+                     icon("bus", lib = "font-awesome"),
+                     tags$b(" Ride Comfort: "), "How pleasant is the journey? ",
+                     tags$span("Considers walking time and number of transfers. Fewer changes and less walking mean higher comfort.")
+                   ),
+                   tags$li(
+                     icon("exclamation-triangle", lib = "font-awesome"),
+                     tags$b(" Route Reliability: "), "Will my commute be disrupted? ",
+                     tags$span("Evaluates backup options and mode diversity. More alternative routes and transport types improve reliability.")
+                   ),
+                   tags$li(
+                     icon("clock", lib = "font-awesome"),
+                     tags$b(" Transport Frequency: "), "How often do the buses or trains come? ",
+                     tags$span("Measures expected waiting times based on your selected travel period.")
+                   )
+                 ),
+                 
                  fluidRow(
-                   column(6, h4("Radar Chart: BTO A"), plotlyOutput("radar_a")),
-                   column(6, h4("Radar Chart: BTO B"), plotlyOutput("radar_b"))
+                   column(6, h4("Radar Chart: BTO A", style = "font-weight: bold"), plotlyOutput("t3_radar_a")),
+                   column(6, h4("Radar Chart: BTO B", style = "font-weight: bold"), plotlyOutput("t3_radar_b"))
                  ),
                  fluidRow(
-                   column(6, h4("Radar Chart: BTO C"), plotlyOutput("radar_c")),
-                   column(6, h4("Radar Chart: BTO D"), plotlyOutput("radar_d"))
+                   column(6, h4("Radar Chart: BTO C", style = "font-weight: bold"), plotlyOutput("t3_radar_c")),
+                   column(6, h4("Radar Chart: BTO D", style = "font-weight: bold"), plotlyOutput("t3_radar_d"))
                  )
                )
              )
     ),
+    
     
     # --- Transport Access Dashboard ---
     tabPanel("Transport Access Dashboard", value = "insights",

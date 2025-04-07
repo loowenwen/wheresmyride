@@ -299,50 +299,63 @@ engineer_features <- function(lat, lon) {
 
 ```{r}
 
-normalised_score <- function(features) {
-  # ---- Normalize/scale scores ----
+normalised_score <- function(features, 
+                             weight_mrt = 1/3 * 100, 
+                             weight_bus = 1/3 * 100, 
+                             weight_walk = 1/3 * 100,
+                             weight_congestion = 100,
+                             selected_time_slots = c("AM_peak", "AM_offpeak", "PM_peak", "PM_offpeak")) {
+  
+  # --- Normalise weights ---
+  sum_weights <- weight_mrt + weight_bus + weight_walk
+  norm_mrt <- weight_mrt / sum_weights
+  norm_bus <- weight_bus / sum_weights
+  norm_walk <- weight_walk / sum_weights
+  norm_congestion <- weight_congestion / 100
+  
+  # ---- Normalise/scale scores ----
+  # MRT score (distance excluded)
   score_mrt <- mean(c(
     ifelse(is.na(features$num_mrt_stations), 0, features$num_mrt_stations / 3),
-    ifelse(is.na(features$avg_dist_mrt), 0, 1 / (features$avg_dist_mrt + 1)),
     ifelse(is.na(features$num_unique_mrt_lines), 0, features$num_unique_mrt_lines / 3)
-    ))  * 100
-                    
+  )) * 100
 
+  # Bus score (distance excluded)
   score_bus <- mean(c(
     ifelse(is.na(features$num_bus_stops), 0, features$num_bus_stops / 20),
-    ifelse(is.na(features$avg_dist_bus), 0, 1 / (features$avg_dist_bus + 1)),
     ifelse(is.na(features$num_unique_bus_services), 0, features$num_unique_bus_services / 30)
-    ))  * 100
+  )) * 100
 
-
-  # Normalise distances to [0,1], where closer = better walkability  
+  # Walkability (distance included)
   norm_mrt_dist <- max(0, 1 - (ifelse(is.na(features$avg_dist_mrt), 500, features$avg_dist_mrt) / 500))
   norm_bus_dist <- max(0, 1 - (ifelse(is.na(features$avg_dist_bus), 500, features$avg_dist_bus) / 500))
-  
-  # Compute final walkability score out of 100
   walkability_score <- mean(c(norm_mrt_dist, norm_bus_dist)) * 100
 
-  # Compute congestion as its own score
+  # Penalty
   calc_penalty <- function(mrt_crowd, bus_volume) {
     mean(c(
       ifelse(is.na(mrt_crowd), 0, (mrt_crowd - 1) / 2),
       ifelse(is.na(bus_volume), 0, bus_volume / 500)
     )) * 10
   }
-  
-  congestion_AM_peak <- calc_penalty(features$mrt_crowd_AM_peak, features$bus_volume_AM_peak)
-  congestion_AM_offpeak <- calc_penalty(features$mrt_crowd_AM_offpeak, features$bus_volume_AM_offpeak)
-  congestion_PM_peak <- calc_penalty(features$mrt_crowd_PM_peak, features$bus_volume_PM_peak)
-  congestion_PM_offpeak <- calc_penalty(features$mrt_crowd_PM_offpeak, features$bus_volume_PM_offpeak)
-  
-  congestion_penalty <- mean(c(
-    congestion_AM_peak,
-    congestion_AM_offpeak,
-    congestion_PM_peak,
-    congestion_PM_offpeak
-  ), na.rm = TRUE)
-  
-  final_score <- (mean(c(score_mrt, score_bus, walkability_score)) - congestion_penalty)
+
+  # Compute congestion per time slot
+  congestion_list <- list(
+    AM_peak = calc_penalty(features$mrt_crowd_AM_peak, features$bus_volume_AM_peak),
+    AM_offpeak = calc_penalty(features$mrt_crowd_AM_offpeak, features$bus_volume_AM_offpeak),
+    PM_peak = calc_penalty(features$mrt_crowd_PM_peak, features$bus_volume_PM_peak),
+    PM_offpeak = calc_penalty(features$mrt_crowd_PM_offpeak, features$bus_volume_PM_offpeak)
+  )
+
+  # Filter congestion by selected time slots
+  filtered_congestion <- congestion_list[selected_time_slots]
+  congestion_penalty <- mean(unlist(filtered_congestion), na.rm = TRUE)
+
+
+  # Weighted score - subtract weighted congestion penalty
+  final_score <- (score_mrt * norm_mrt +
+                  score_bus * norm_bus +
+                  walkability_score * norm_walk) - (congestion_penalty * norm_congestion)
 
 
   # ---- Create breakdown ----
@@ -353,6 +366,7 @@ normalised_score <- function(features) {
     score_bus = score_bus,
     walkability_score = walkability_score,
     congestion_penalty = congestion_penalty,
+    time_slot_congestion = congestion_list[selected_time_slots],
 
     mrt_score_components = list(
       num_mrt_stations = features$num_mrt_stations,
@@ -382,28 +396,30 @@ normalised_score <- function(features) {
       mrt_crowd_PM_offpeak = features$mrt_crowd_PM_offpeak
     ),
     
-    time_slot_congestion = list(
-      AM_peak = congestion_AM_peak,
-      AM_offpeak = congestion_AM_offpeak,
-      PM_peak = congestion_PM_peak,
-      PM_offpeak = congestion_PM_offpeak
-    ),
+    time_slot_congestion = congestion_list,
 
-      walkability = list(
-        avg_mrt_distance = features$avg_dist_mrt,
-        avg_bus_distance = features$avg_dist_bus,
-        walkability_score = walkability_score
-        )
-  )
-
+    walkability = list(
+      avg_mrt_distance = features$avg_dist_mrt,
+      avg_bus_distance = features$avg_dist_bus,
+      walkability_score = walkability_score
+      )
+    )
+  
   return(breakdown)
-}
+  
+  }
 
 ```
 
 
 ```{r}
-predict_accessibility <- function(postal_code) {
+predict_accessibility <- function(postal_code, 
+                                  weight_mrt = 1/3 * 100, 
+                                  weight_bus = 1/3 * 100, 
+                                  weight_walk = 1/3 * 100, 
+                                  weight_congestion = 1,
+                                  selected_time_slots = c("AM_peak", "AM_offpeak", "PM_peak", "PM_offpeak")) {
+                                    
   base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
   token <- Sys.getenv("ONEMAP_TOKEN")
   
@@ -421,7 +437,14 @@ predict_accessibility <- function(postal_code) {
   
   features <- engineer_features(lat, lon)
 
-  score_breakdown <- normalised_score(features)
+  score_breakdown <- normalised_score(
+    features, 
+    weight_mrt = weight_mrt, 
+    weight_bus = weight_bus, 
+    weight_walk = weight_walk, 
+    weight_congestion = weight_congestion,
+    selected_time_slots = selected_time_slots
+    )
   
   return(list(
     postal_code = postal_code,
@@ -437,9 +460,16 @@ predict_accessibility <- function(postal_code) {
 
 ```{r}
 # Test
+# Use custom weights
+result <- predict_accessibility("543305", weight_mrt = 0, weight_bus = 1, weight_walk = 0, weight_congestion = 0)
+
+# Only AM peak and PM peak
+result1 <- predict_accessibility("543305", weight_mrt = 50, weight_bus = 60, weight_walk = 40, selected_time_slots = c("AM_peak", "PM_peak"))
+
+print(result)
+
+# Default weights (equal)
 result <- predict_accessibility("543305")
-print(result$score_breakdown)
+
 ```
-
-
 

@@ -453,8 +453,9 @@ shinyUI(
                         )
                  ),
                  column(4,
+                        br(),
                         tags$div(
-                          img(src = "black_logo.png", width = "100%", style = "margin-bottom: 10px;"))
+                          img(src = "black_logo.png", width = "80%", style = "margin-bottom: 10px;"))
                  )
                ),
                br(),

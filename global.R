@@ -27,10 +27,19 @@ mrt_station_density <- bind_rows(
   mrt_station_density,
   data.frame(pln_area_n = missing_pln_areas, n = 0)
 )
+#read in from src 
+source("RouteQualityScore.R")
+bus_analyzer <- BusFrequencyAnalyzer$new(api_key = "o6OuJxI3Re+qYgFQzb+4+w==")
+route_analyzer <- RouteAnalyzer$new(
+  email = "loowenwen1314@gmail.com",
+  password = "sochex-6jobge-fomsYb",
+  analyzer = bus_analyzer
+)
 
 #read in bto data
-bto_data <- read.csv("data/BTO_projects.csv", stringsAsFactors = FALSE)
-bto_choices <- paste0(bto_data$Town, " (", bto_data$Region, ")")
+bto_data <- readRDS("data/RDS files/upcoming_bto.rds")
+bto_choices <- paste0(bto_data$town, " (", bto_data$region, ")")
 bto_choices <- unique(bto_choices)
 names(bto_choices) <- bto_choices
+
 

@@ -6,6 +6,119 @@ route_analyzer <- RouteAnalyzer$new(
   password = "sochex-6jobge-fomsYb"
 )
 
+
+#raffles place, one north, orchard road (orchard gateway), jurong east, changi airport (terminal 1), singapore general hospital
+#048618, 138647, 238858, 609690, 819642, 169608
+
+
+postal_codes <- c(048618, 138647, 238858, 609690, 819642, 169608)
+
+build_travel_time_matrix <- function(town, bto_coord, postal_codes, date = "03-24-2025", time_period = "Morning Peak (6:30-8:30am)", maxWalkDistance = 1000) {
+  
+  # Helper: Clean coordinate string
+  clean_coord <- function(coord_str) {
+    gsub("\\s+", "", gsub("\\[|\\]", "", coord_str))
+  }
+  
+  # Clean the BTO coordinate
+  start_coord <- clean_coord(bto_coord)
+  
+  # Initialize vector to store results
+  travel_times <- numeric(length(postal_codes))
+  
+  # Loop through postal codes
+  for (j in seq_along(postal_codes)) {
+    end_coord <- get_coordinates_from_postal(postal_codes[j])
+    
+    routes <- route_analyzer$get_route_data(
+      start = start_coord,
+      end = end_coord,
+      date = date,
+      time_period = time_period,
+      maxWalkDistance = maxWalkDistance
+    )
+    
+    travel_times[j] <- round(min(routes$duration) / 60)
+  }
+  
+  # Combine into a dataframe
+  travel_df <- data.frame(
+    Town = town,
+    Name = names,
+    EstimatedTimeMin = travel_times
+  )
+  
+  return(travel_df)
+}
+
+names <- c("Raffles Place", "One North", "Orchard Gateway", "Jurong East", "Changi Airport Terminal", "Singapore General Hospital")
+postal_codes <- c(048618, 138647, 238858, 609690, 819642, 169608)
+
+# Let's say you're using Bukit Merah (row 1 of your dataset)
+bukit_merah1 <- build_travel_time_matrix(
+  town = "Bukit Merah", 
+  bto_coord = bto_data$Coordinates[1], 
+  postal_codes = postal_codes
+)
+ 
+
+
+
+travel_times_df <- build_travel_time_matrix(bto_data, postal_codes)
+
+get_travel_times_to_postal <- function(bto_data, postal_code, date = "03-24-2025", time_period = "Morning Peak (6:30-8:30am)", maxWalkDistance = 1000) {
+  
+  # Helper: Clean coordinate string
+  clean_coord <- function(coord_str) {
+    gsub("\\s+", "", gsub("\\[|\\]", "", coord_str))
+  }
+  
+  # Initialize vector to store travel times
+  travel_times <- numeric(nrow(bto_data))
+  
+  for (i in seq_len(nrow(bto_data))) {
+    start_coord <- clean_coord(bto_data$Coordinates[i])
+    
+    # Get route data
+    routes <- route_analyzer$get_route_data(
+      start = start_coord,
+      end = get_coordinates_from_postal(postal_code),
+      date = date,
+      time_period = time_period,
+      maxWalkDistance = maxWalkDistance
+    )
+    
+    # Compute mean travel time in minutes
+    travel_times[i] <- round(mean(routes$duration) / 60)
+  }
+  
+  # Return new dataframe
+  result <- data.frame(
+    Town = bto_data$Town,
+    Region = bto_data$Region,
+    Coordinates = sapply(bto_data$Coordinates, clean_coord),
+    AvgTravelTimeMins = travel_times
+  )
+  
+  return(result)
+}
+
+
+
+travel_df <- get_travel_times_to_postal(bto_data, postal_code = 819642)
+
+
+
+
+
+
+
+
+
+
+
+
+
 find_closest_key_location <- function(postal_code, building_type = "Mall") {
   # Authentication with OneMap API
   auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
@@ -86,6 +199,8 @@ find_closest_key_location <- function(postal_code, building_type = "Mall") {
   
   return(closest)
 }
+
+
 
 
 closest_hospital <- find_closest_key_location("520702", "Hospital")

@@ -21,6 +21,7 @@ library(jsonlite)
 library(geosphere)
 library(sf)
 library(purrr)
+library(units)
 ```
 
 
@@ -122,6 +123,23 @@ head(mrt_crowdDensity)
 
 ```
 
+### Importing Bus and MRT location information from "planningareapolygons.R"
+
+```{r}
+
+readRDS("../data/RDS Files/planning_area_polygons.RDS")
+bus_stops <- readRDS("../data/RDS Files/bus_with_planning.RDS")
+mrt_lrt <- readRDS("../data/RDS Files/mrt_stations.RDS")
+
+mrt_lrt <- mrt_lrt %>%
+  st_as_sf() %>%
+  st_transform(crs = 4326)
+
+bus_stops <- bus_stops %>%
+  st_as_sf() %>%
+  st_transform(crs = 4326)
+
+```
 
 ### Extracting Bus Services Function
 
@@ -154,6 +172,7 @@ bus_services_lookup <- bus_routes_raw %>%
   select(ServiceNo, BusStopCode) %>%
   distinct() %>%
   mutate(BusStopCode = str_pad(as.character(BusStopCode), 5, side = "left", pad = "0"))
+
 ```
 
 ### Engineering of all Features
@@ -161,14 +180,12 @@ bus_services_lookup <- bus_routes_raw %>%
 ```{r}
 engineer_features <- function(lat, lon) {
 
-    # Load datasets
-  
-  mrt_lrt_coords <- read_csv("../data/MRTStations.csv", show_col_types = FALSE)
+  ### Load datasets
   
   #mrt_passVol <- read_csv("../data/transport_node_train_202502.csv", show_col_types = FALSE) 
   #NO LONGER USED, CROWD DENSITY USED INSTEAD
 
-  #Time based Bus passernger volume
+  #Time based Bus passenger volume
   busstops_passengerVolume <- read_csv("../data/PV_busstops.csv", show_col_types = FALSE) %>%
     filter(DAY_TYPE == "WEEKDAY") %>%
     mutate(
@@ -187,8 +204,8 @@ engineer_features <- function(lat, lon) {
       daily_avg_vol = sum(TOTAL_TAP_IN_VOLUME, na.rm = TRUE) / 20,
       .groups = 'drop'
     )
-  
-  # Finding coordinates of al bus stops
+'  
+  # Finding coordinates of all bus stops
   bus_coords <- st_read("../data/BusStopLocation_Nov2024/BusStop.shp", quiet = TRUE) %>%
     rename(BusStop_code = BUS_STOP_N) %>%
     st_transform(crs = 4326) %>%
@@ -198,10 +215,20 @@ engineer_features <- function(lat, lon) {
       Latitude = st_coordinates(geometry)[,2]
     ) %>%
     st_drop_geometry()
+'
+  
+  bus_coords <- bus_stops %>%
+    mutate(BusStop_code = as.character(BusStopCode)) %>%
+    st_transform(crs = 4326)
+  
+  
+  # Convert user location to sf POINT
+  location_point <- st_sfc(st_point(c(lon, lat)), crs = 4326)
 
   ### MRT ANALYSIS
-  mrt_coords <- mrt_lrt_coords %>%
-    mutate(dist = distHaversine(cbind(Longitude, Latitude), c(lon, lat))) %>%
+  mrt_coords <- mrt_lrt %>%
+    st_make_valid() %>%
+    mutate(dist = as.numeric(st_distance(geometry, location_point))) %>%
     filter(dist < 500)
 
   num_mrt_stations <- nrow(mrt_coords)
@@ -211,20 +238,19 @@ engineer_features <- function(lat, lon) {
     message("No MRT stations found within 500m radius. MRT score may be low or NA.")
             }
 
-  mrt_station_names <- mrt_coords$STN_NAME
+  mrt_station_names <- mrt_coords$mrt_station
 
   # Extract MRT line codes (e.g., NS1 -> NS)
-  mrt_lines <- mrt_coords$STN_NO %>%
-    str_split("/") %>%
-    unlist() %>%
-    str_extract("^[A-Z]+") %>%
+  mrt_lines <- mrt_coords %>%
+    pull(mrt_line) %>%
     unique()
 
   num_unique_mrt_lines <- length(mrt_lines)
 
   ### BUS ANALYSIS
   bus_nearby <- bus_coords %>%
-    mutate(dist = distHaversine(cbind(Longitude, Latitude), c(lon, lat))) %>%
+    st_make_valid() %>%
+    mutate(dist = as.numeric(st_distance(geometry, location_point))) %>%
     filter(dist < 500)
 
   num_bus_stops <- nrow(bus_nearby)
@@ -247,8 +273,8 @@ engineer_features <- function(lat, lon) {
   ### CROWD / VOLUME ANALYSIS
   mrtNames_crowdDensity <- mrt_crowdDensity %>%
     rowwise() %>%
-    mutate(STN_NAME = mrt_lrt_coords$STN_NAME[
-      which(str_detect(mrt_lrt_coords$STN_NO, Station))[1]
+    mutate(STN_NAME = mrt_lrt$mrt_station[
+      which(str_detect(mrt_lrt$stn_code, Station))[1]
     ])
 
   mrt_crowd_scores <- mrtNames_crowdDensity %>%
@@ -466,10 +492,11 @@ result <- predict_accessibility("543305", weight_mrt = 0, weight_bus = 1, weight
 # Only AM peak and PM peak
 result1 <- predict_accessibility("543305", weight_mrt = 50, weight_bus = 60, weight_walk = 40, selected_time_slots = c("AM_peak", "PM_peak"))
 
-print(result)
+print(result1)
 
 # Default weights (equal)
 result <- predict_accessibility("543305")
 
 ```
+
 

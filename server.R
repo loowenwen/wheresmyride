@@ -129,8 +129,7 @@ shinyServer(function(input, output, session) {
         return(NULL)
       })
       return(coords)
-    } 
-    else if (!is.null(input$t2_bto_project)) {
+    } else if (!is.null(input$t2_bto_project)) {
       bto_row <- upcoming_bto %>% filter(label == input$t2_bto_project)
       if (nrow(bto_row) > 0) {
         return(c(bto_row$lng, bto_row$lat))
@@ -140,7 +139,13 @@ shinyServer(function(input, output, session) {
   })
   
   observeEvent(input$t2_show_commute_map, {
+    print("Button clicked")
+    print(paste("Postal:", input$t2_postal_code))
+    print(paste("BTO:", input$t2_bto_project))
+    
     coords <- get_selected_coords()
+    print("Result from get_selected_coords:")
+    print(coords)
     req(coords)
     
     lng <- coords[1]

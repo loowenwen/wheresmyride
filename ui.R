@@ -1,8 +1,10 @@
-library(leaflet)
-library(plotly)
-library(shiny)
-library(shinyjs)
-library(shinythemes)
+suppressPackageStartupMessages({
+  library(leaflet)
+  library(plotly)
+  library(shiny)
+  library(shinyjs)
+  library(shinythemes)
+})
 
 source("global.R") 
 

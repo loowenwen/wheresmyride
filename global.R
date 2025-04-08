@@ -30,24 +30,38 @@ if (exists("results") && !is.null(results$summary)) {
 
 # ==== Use of OneMap API (REUSABLE) ====
 # --- OneMap Authentication ---
-auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
-auth_body <- list(
-  email = "loowenwen1314@gmail.com",
-  password = "sochex-6jobge-fomsYb"
-)
-
-response <- POST(url = auth_url, body = auth_body, encode = "json")
-
-if (status_code(response) == 200) {
-  data <- fromJSON(content(response, as = "text", encoding = "UTF-8"))
-  Sys.setenv(ONEMAP_TOKEN = data$access_token)
-} else {
-  stop(paste("Authentication failed:", status_code(response)))
+get_onemap_token <- function(force_refresh = FALSE) {
+  current_token <- Sys.getenv("ONEMAP_TOKEN")
+  
+  if (!nzchar(current_token) || force_refresh) {
+    auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
+    auth_body <- list(
+      email = "loowenwen1314@gmail.com",
+      password = "sochex-6jobge-fomsYb"
+    )
+    
+    response <- POST(url = auth_url, body = auth_body, encode = "json")
+    
+    if (status_code(response) == 200) {
+      data <- fromJSON(content(response, as = "text", encoding = "UTF-8"))
+      Sys.setenv(ONEMAP_TOKEN = data$access_token)
+      return(data$access_token)
+    } else {
+      stop(paste(status_code(response)))
+    }
+  }
+  
+  return(current_token)
 }
+
+# Immediately Refresh on App Launch
+get_onemap_token(force_refresh = TRUE)
+
 
 # --- Function: Get Coordinates from Postal Code ---
 get_coords_from_postal <- function(postal_code) {
-  token <- Sys.getenv("ONEMAP_TOKEN")
+  token <- get_onemap_token(force_refresh = TRUE)  # <--- always fresh
+  
   url <- "https://www.onemap.gov.sg/api/common/elastic/search"
   
   response <- GET(
@@ -60,15 +74,23 @@ get_coords_from_postal <- function(postal_code) {
     add_headers(Authorization = token)
   )
   
-  if (status_code(response) != 200) return(NULL)
+  if (status_code(response) != 200) {
+    message("❌ OneMap lookup failed with status: ", status_code(response))
+    return(NULL)
+  }
   
   result <- fromJSON(content(response, as = "text", encoding = "UTF-8"))
-  if (length(result$results) == 0) return(NULL)
+  
+  if (length(result$results) == 0) {
+    message("⚠️ No results found for postal code.")
+    return(NULL)
+  }
   
   lng <- as.numeric(result$results$LONGITUDE[1])
   lat <- as.numeric(result$results$LATITUDE[1])
   return(c(lng, lat))
 }
+
 
 
 # ==== Tab One ====

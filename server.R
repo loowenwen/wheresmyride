@@ -629,10 +629,12 @@ shinyServer(function(input, output, session) {
     accessibility_scores$walk_score <- round(runif(1, 0, 100), 1)
     accessibility_scores$congestion_score <- round(runif(1, 0, 100), 1)
     
+    travel_time_df <- build_travel_time_df(t4_postal_code)
     accessibility_scores$travel_times <- data.frame(
-      Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
-      TravelTime_Min = sample(10:60, 6)
+      Location = travel_time_df$Name,
+      TravelTime_Min = travel_time_df$EstimatedTimeMin
     )
+    
     colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
     
     accessibility_scores$nearby_stops <- data.frame(

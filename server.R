@@ -459,45 +459,45 @@ shinyServer(function(input, output, session) {
 
     
   # ==== TAB 3: Comparing BTO Estates ====
-  render_radar_chart_by_coords <- function(coord_string) {
-    bto_scores <- rqs_summary %>%
-      filter(Start == coord_string)
-    
-    if (nrow(bto_scores) == 0) return(NULL)
-    
-    plot_ly(
-      type = 'scatterpolar',
-      r = c(bto_scores$Transport, bto_scores$Comfort, bto_scores$Robustness, bto_scores$Service, bto_scores$Transport),
-      theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-      fill = 'toself',
-      name = coord_string
-    ) %>%
-      layout(
-        polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))),
-        showlegend = FALSE
-      )
-  }
-  
-  
-  output$radar_a <- renderPlotly({
-    req(input$bto_a_postal)
-    render_radar_chart_by_coords(input$bto_a_postal)
-  })
-  
-  output$radar_b <- renderPlotly({
-    req(input$bto_b_postal)
-    render_radar_chart_by_coords(input$bto_b_postal)
-  })
-  
-  output$radar_c <- renderPlotly({
-    req(input$bto_c_postal)
-    render_radar_chart_by_coords(input$bto_c_postal)
-  })
-  
-  output$radar_d <- renderPlotly({
-    req(input$bto_d_postal)
-    render_radar_chart_by_coords(input$bto_d_postal)
-  })
+  # render_radar_chart_by_coords <- function(coord_string) {
+  #   bto_scores <- rqs_summary %>%
+  #     filter(Start == coord_string)
+  #   
+  #   if (nrow(bto_scores) == 0) return(NULL)
+  #   
+  #   plot_ly(
+  #     type = 'scatterpolar',
+  #     r = c(bto_scores$Transport, bto_scores$Comfort, bto_scores$Robustness, bto_scores$Service, bto_scores$Transport),
+  #     theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
+  #     fill = 'toself',
+  #     name = coord_string
+  #   ) %>%
+  #     layout(
+  #       polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))),
+  #       showlegend = FALSE
+  #     )
+  # }
+  # 
+  # 
+  # output$radar_a <- renderPlotly({
+  #   req(input$bto_a_postal)
+  #   render_radar_chart_by_coords(input$bto_a_postal)
+  # })
+  # 
+  # output$radar_b <- renderPlotly({
+  #   req(input$bto_b_postal)
+  #   render_radar_chart_by_coords(input$bto_b_postal)
+  # })
+  # 
+  # output$radar_c <- renderPlotly({
+  #   req(input$bto_c_postal)
+  #   render_radar_chart_by_coords(input$bto_c_postal)
+  # })
+  # 
+  # output$radar_d <- renderPlotly({
+  #   req(input$bto_d_postal)
+  #   render_radar_chart_by_coords(input$bto_d_postal)
+  # })
   
 
   # ==== TAB 4: Accessibility Dashboard ====
@@ -704,24 +704,24 @@ shinyServer(function(input, output, session) {
     return(NULL)
   })
 
-  # --- Optionally Source Custom Logic from testServer.R ---
-  
-  override_file <- "tab4Override.R"
-  predict_file <- "predict_accessibility.R"
-  
-  if (file.exists(predict_file)) {
-    message(" Loading base scoring logic from predict_accessibility.R...")
-    source(predict_file, new.env())
-  } else {
-    stop(" Missing required file: predict_accessibility.R")
-  }
-  
-  if (file.exists(override_file)) {
-    message(" Sourcing custom override logic from tab4Override.R...")
-    source(override_file, new.env())
-  } else {
-    stop(" Missing override logic file: tab4Override.R")
-  }
+  # # --- Optionally Source Custom Logic from testServer.R ---
+  # 
+  # override_file <- "tab4Override.R"
+  # predict_file <- "predict_accessibility.R"
+  # 
+  # if (file.exists(predict_file)) {
+  #   message(" Loading base scoring logic from predict_accessibility.R...")
+  #   source(predict_file, new.env())
+  # } else {
+  #   stop(" Missing required file: predict_accessibility.R")
+  # }
+  # 
+  # if (file.exists(override_file)) {
+  #   message(" Sourcing custom override logic from tab4Override.R...")
+  #   source(override_file, new.env())
+  # } else {
+  #   stop(" Missing override logic file: tab4Override.R")
+  # }
   
 
 })

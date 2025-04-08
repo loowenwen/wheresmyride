@@ -6,8 +6,8 @@ library(httr)
 library(jsonlite)
 library(readr)
 
-upcoming_bto <- readRDS("../data/RDS Files/upcoming_bto.rds")
-all_bus_services_frequencies <- readRDS("../data/RDS Files/all_bus_services_frequencies.rds")
+upcoming_bto <- readRDS("data/RDS Files/upcoming_bto.rds")
+all_bus_services_frequencies <- readRDS("data/RDS Files/all_bus_services_frequencies.rds")
 get_coordinates_from_postal <- function(postal_code) {
   # Authenticate with OneMap API
   auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"

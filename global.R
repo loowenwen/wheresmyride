@@ -95,10 +95,19 @@ get_coords_from_postal <- function(postal_code) {
 
 
 # ==== Tab One ====
-# Bus stop density by planning area
+# --- Bus Stop Density ---
 bus_stop_density <- bus_with_planning %>% 
   st_drop_geometry() %>%
   count(pln_area_n)
+
+# fill in planning areas that are missing bus stops with zero counts
+missing_pln_areas <- setdiff(planning_areas$pln_area_n, bus_stop_density$pln_area_n)
+
+bus_stop_density <- bind_rows(
+  bus_stop_density,
+  data.frame(pln_area_n = missing_pln_areas, n = 0)
+)
+
 
 # Bus Stop data
 df_ROCHOR <- subset(bus_with_planning, pln_area_n == "ROCHOR")
@@ -153,49 +162,23 @@ df_MARINE_PARADE <- subset(bus_with_planning, pln_area_n == "MARINE PARADE")
 df_CHANGI <- subset(bus_with_planning, pln_area_n == "CHANGI")
 df_CHANGI_BAY <- subset(bus_with_planning, pln_area_n == "CHANGI BAY")
 
-# MRT station density by planning area
-mrt_with_planning <- mrt_with_planning %>%
-  distinct(mrt_station, .keep_all = TRUE)
+
+# --- MRT Station Density ---
 mrt_station_density <- mrt_with_planning %>% 
+  distinct(mrt_station, .keep_all = TRUE) %>%
   st_drop_geometry() %>%
   count(pln_area_n)
 
-
-mrt_station_data <- read_csv("data/MRTStations.csv")
-mrt_station_data <- mrt_station_data %>% separate_rows(STN_NO, sep = "/")
-mrt_station_data_upd <- mrt_station_data %>%
-  mutate(colour = case_when(
-    grepl("^NS", STN_NO) ~ "#D62010", 
-    grepl("^EW", STN_NO) ~ "#008040",  
-    grepl("^CC", STN_NO) ~ "#FFA500",
-    grepl("^NE", STN_NO) ~ "#8B00FF",
-    grepl("^DT", STN_NO) ~ "#004494", 
-    grepl("^TE", STN_NO) ~ "#966F33", 
-    grepl("^P", STN_NO) ~ "#748477",
-    grepl("^S", STN_NO) ~ "#748477", 
-    grepl("^B", STN_NO) ~ "#748477", 
-    TRUE ~ "#000000" 
-  ))
-
-# Filtered MRT lines based on the STN_NO
-ew_line <- mrt_station_data_upd %>% filter(grepl("^EW", STN_NO))
-ns_line <- mrt_station_data_upd %>% filter(grepl("^NS", STN_NO))
-cc_line <- mrt_station_data_upd %>% filter(grepl("^CC", STN_NO))
-ne_line <- mrt_station_data_upd %>% filter(grepl("^NE", STN_NO))
-dt_line <- mrt_station_data_upd %>% filter(grepl("^DT", STN_NO))
-te_line <- mrt_station_data_upd %>% filter(grepl("^TE", STN_NO))
-Punggol_LRT_line <- mrt_station_data_upd %>% filter(grepl("^P", STN_NO))
-Sengkang_LRT_line <- mrt_station_data_upd %>% filter(grepl("^S", STN_NO))
-BukitPanjang_LRT_line <- mrt_station_data_upd %>% filter(grepl("^B", STN_NO))
-
-
-# Fill in planning areas that are missing MRT stations with zero counts
+# fill in planning areas that are missing MRT stations with zero counts
 missing_pln_areas <- setdiff(planning_areas$pln_area_n, mrt_station_density$pln_area_n)
 
 mrt_station_density <- bind_rows(
   mrt_station_density,
   data.frame(pln_area_n = missing_pln_areas, n = 0)
 )
+
+mrt_station_density <- mrt_station_density %>%
+  mutate(rank = min_rank(desc(n)))
 
 
 # ==== Tab Two ====
@@ -206,9 +189,3 @@ generate_fast_isochrone <- function(center_lng, center_lat, duration_mins) {
   circle_coords <- geosphere::destPoint(center, b = seq(0, 360, length.out = 100), d = radius_m)
   return(as.data.frame(circle_coords))
 }
-
-##home tab
-#upcoming bto
-upcoming_btos <- readRDS("data/RDS Files/upcoming_bto.rds")
-upcoming_btos$launchStartDate <- as.POSIXct(upcoming_btos$launchStartDate, format="%Y-%m-%d %H:%M:%S")
-upcoming_btos$launchStartDate <- format(upcoming_btos$launchStartDate, "%d %B %Y")

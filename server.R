@@ -28,14 +28,14 @@ shinyServer(function(input, output, session) {
           "<p><strong>BTO Exercise:</strong> ",
           format(as.Date(paste0(ballotQtr, "-01")), "%B %Y"), "</p></div>"
         ),
-        group = "BTO Sites"
+        group = "BTO Projects"
       ) %>%
       
       # --- MRT Stations ---
       addCircleMarkers(
         data = mrt_with_planning,
         ~centroid_lon, ~centroid_lat,
-        radius = 4,
+        radius = 5,
         color = "#c1121f",
         fillOpacity = 0.9,
         stroke = FALSE,
@@ -50,7 +50,7 @@ shinyServer(function(input, output, session) {
       addCircleMarkers(
         data = bus_with_planning,
         ~Longitude, ~Latitude,
-        radius = 3,
+        radius = 4,
         color = "#669bbc",
         fillOpacity = 0.9,
         stroke = FALSE,
@@ -58,12 +58,12 @@ shinyServer(function(input, output, session) {
         popup = ~paste0("<h5>", BusStopCode, "</h5>",
                         "<p><strong>Description:</strong><br>", Description, "</p>",
                         "<p><strong>Road Name:</strong><br>", RoadName, "</p>"),
-        group = "Bus Interchanges"
+        group = "Bus Stops"
       ) %>%
       
       # --- Layers Control ---
       addLayersControl(
-        overlayGroups = c("BTO Sites", "MRT Stations", "Bus Interchanges"),
+        overlayGroups = c("BTO Projects", "MRT Stations", "Bus Stops"),
         options = layersControlOptions(collapsed = FALSE)
       ) %>%
       
@@ -89,127 +89,135 @@ shinyServer(function(input, output, session) {
   
   
   # ==== TAB 1: Location Overview & Density Maps ====
-  # MRT Station Density Map
-  output$mrt_density_info <- renderUI({
+  
+  # --- MRT Station Density Map ---
+  output$mrt_density_high <- renderUI({
     if (input$mapType != "MRT Stations") return(NULL)
     
-    # Calculate highest and lowest density
+    # calculate highest and lowest density
     highest_density <- max(mrt_station_density$n)
-    lowest_density <- min(mrt_station_density$n)
-    
     highest_area <- mrt_station_density$pln_area_n[which.max(mrt_station_density$n)]
-    lowest_area <- mrt_station_density$pln_area_n[which.min(mrt_station_density$n)]
     
     tagList(
-      div(
-        style = "background-color: #f9f9f9; padding: 10px; border: 1px solid #ccc;",
-        h4("Density Information"),
-        p(paste("Area of highest density: ", highest_area, " with ", highest_density, " MRT stations.")),
-        p(paste("Area of lowest density: ", lowest_area, " with ", lowest_density, " MRT stations."))
-      )
+      h4(stringr::str_to_title(highest_area), style = "font-weight: bold"),
+      p(paste(highest_density, " MRT stations"))
+    )
+  })
+  
+  output$mrt_density_low <- renderUI({
+    if (input$mapType != "MRT Stations") return(NULL)
+    
+    lowest_density <- min(mrt_station_density$n)
+
+    zero_density_areas <- mrt_station_density %>%
+      filter(n == 0) %>%
+      pull(pln_area_n)
+    area_list <- paste(stringr::str_to_title(zero_density_areas), collapse = ", ")
+    
+    tagList(
+      h4(area_list, style = "font-weight: bold"),
+      p(paste(lowest_density, " MRT stations"))
     )
   })
   
   output$mrt_station_density_map <- renderLeaflet({
     if (input$mapType != "MRT Stations") return(NULL)
     
-    # Create the color palette for MRT stations polygons
-    palette <- colorNumeric(palette = c("white", "black"), domain = mrt_station_density$n)
+    # Color palette for planning areas
+    palette <- colorNumeric(palette = c("white", "#1E90FF"), domain = mrt_station_density$n)
     
-    # Initialize the map with polygons only (no markers)
     map <- leaflet() %>%
       addTiles() %>%
       setView(lng = 103.8198, lat = 1.3521, zoom = 12) %>%
       addPolygons(
         data = planning_areas,
         fillColor = ~palette(mrt_station_density$n[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)]),
-        color = "grey", weight = 2, opacity = 1, fillOpacity = 0.7,
-        popup = ~paste("<strong>", pln_area_n, "</strong>",
-                       "<br>Number of MRT Stations:", 
-                       mrt_station_density$n[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)]),
+        color = "black", weight = 1, fillOpacity = 0.7,
+        popup = ~paste(
+          "<strong>", pln_area_n, "</strong><br>",
+          "Number of MRT Stations: ",
+          mrt_station_density$n[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)],"<br>",
+          "National Ranking: ",
+          mrt_station_density$rank[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)]
+        ),
+        label = ~pln_area_n,
         layerId = ~pln_area_n
       )
     
-    # Only add markers if a checkbox is selected
     if (length(input$mrt_lines) > 0) {
-      filtered_data <- list()
+      line_colors <- c(
+        "BUKIT PANJANG LRT" = "#748477",
+        "CHANGI AIRPORT BRANCH LINE" = "#008040",
+        "CIRCLE LINE" = "#FFA500",
+        "CIRCLE LINE EXTENSION" = "#FFA500",
+        "NORTH-SOUTH LINE" = "#D62010",
+        "EAST-WEST LINE" = "#008040",
+        "NORTH EAST LINE" = "#8B00FF",
+        "DOWNTOWN LINE" = "#004494",
+        "THOMSON-EAST COAST LINE" = "#966F33",
+        "PUNGGOL LRT" = "#748477",
+        "SENGKANG LRT" = "#748477"
+      )
       
-      # Add data for each selected MRT line
-      if ("ew_line" %in% input$mrt_lines) {
-        filtered_data <- append(filtered_data, list(ew_line))
-      }
-      if ("ns_line" %in% input$mrt_lines) {
-        filtered_data <- append(filtered_data, list(ns_line))
-      }
-      if ("cc_line" %in% input$mrt_lines) {
-        filtered_data <- append(filtered_data, list(cc_line))
-      }
-      if ("ne_line" %in% input$mrt_lines) {
-        filtered_data <- append(filtered_data, list(ne_line))
-      }
-      if ("dt_line" %in% input$mrt_lines) {
-        filtered_data <- append(filtered_data, list(dt_line))
-      }
-      if ("te_line" %in% input$mrt_lines) {
-        filtered_data <- append(filtered_data, list(te_line))
-      }
-      if ("Punggol_LRT_line" %in% input$mrt_lines) {
-        filtered_data <- append(filtered_data, list(Punggol_LRT_line))
-      }
-      if ("Sengkang_LRT_line" %in% input$mrt_lines) {
-        filtered_data <- append(filtered_data, list(Sengkang_LRT_line))
-      }
-      if ("BukitPanjang_LRT_line" %in% input$mrt_lines) {
-        filtered_data <- append(filtered_data, list(BukitPanjang_LRT_line))
-      }
+      filtered_data <- mrt_with_planning %>%
+        filter(mrt_line %in% input$mrt_lines)
       
-      # Combine filtered data for selected MRT lines
-      filtered_data <- bind_rows(filtered_data)
+      filtered_data <- filtered_data %>%
+        mutate(marker_color = unname(line_colors[mrt_line]))
       
-      # Check if the filtered data contains the necessary columns before adding markers
-      if ("Latitude" %in% colnames(filtered_data) && "Longitude" %in% colnames(filtered_data)) {
-        # Add MRT station markers to the map using STN_NAME for the popup and STN_NO for station number
-        map <- map %>%
-          addCircleMarkers(
-            data = filtered_data,
-            lat = ~Latitude,           # Use the 'Latitude' column for latitude
-            lng = ~Longitude,          # Use the 'Longitude' column for longitude
-            radius = 6,   # Set the radius of the circle marker (adjust as needed)
-            weight = 2,  
-            opacity = 1,    
-            stroke = TRUE,
-            color = "black",
-            fillColor = ~colour,            # Use the 'color' column for the color of the circle
-                       # Set the opacity of the circle
-            fillOpacity = 1,         # Set the fill opacity
-            popup = ~paste("<strong>", STN_NAME, "</strong>",  # Use STN_NAME for station name
-                           "<br>Station No:", STN_NO)  # Use STN_NO for station number
+      map <- map %>%
+        addCircleMarkers(
+          data = filtered_data,
+          lng = ~centroid_lon,
+          lat = ~centroid_lat,
+          radius = 6,
+          color = "black",
+          fillColor = ~marker_color,
+          fillOpacity = 0.9,
+          stroke = TRUE,
+          weight = 1,
+          popup = ~paste0(
+            "<strong>", mrt_station, "</strong><br>",
+            "Station Code: ", stn_code, "<br>",
+            "MRT Line: ", mrt_line, "<br>",
+            "Planning Area: ", str_to_title(pln_area_n)
           )
-      }
+        )
     }
     
     return(map)
   })
   
   
-  # Bus Stop Density Map
-  output$bus_density_info <- renderUI({
+  # --- Bus Stop Density Map ---
+  output$bus_density_high <- renderUI({
     if (input$mapType != "Bus Stops") return(NULL)
     
-    # Calculate highest and lowest density
     highest_density <- max(bus_stop_density$n)
+    highest_area <- bus_stop_density$pln_area_n[which.max(bus_stop_density$n)]
+    
+    tagList(
+      h4(stringr::str_to_title(highest_area), style = "font-weight: bold"),
+      p(paste(highest_density, " bus stops")),
+    )
+  })
+  
+  output$bus_density_low <- renderUI({
+    if (input$mapType != "Bus Stops") return(NULL)
+    
     lowest_density <- min(bus_stop_density$n)
+    
+    zero_density_areas <- bus_stop_density %>%
+      filter(n == 0) %>%
+      pull(pln_area_n)
+    area_list <- paste(stringr::str_to_title(zero_density_areas), collapse = ", ")
     
     highest_area <- bus_stop_density$pln_area_n[which.max(bus_stop_density$n)]
     lowest_area <- bus_stop_density$pln_area_n[which.min(bus_stop_density$n)]
     
     tagList(
-      div(
-        style = "background-color: #f9f9f9; padding: 10px; border: 1px solid #ccc;",
-        h4("Density Information"),
-        p(paste("Area of highest density: ", highest_area, " with ", highest_density, " bus stops.")),
-        p(paste("Area of lowest density: ", lowest_area, " with ", lowest_density, " bus stops."))
-      )
+      h4(area_list, style = "font-weight: bold"),
+      p(paste(lowest_density, " bus stops"))
     )
   })
   

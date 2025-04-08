@@ -80,116 +80,81 @@ shinyUI(
                  "Transport Heatmap", value = "heatmap",
                  sidebarLayout(
                    sidebarPanel(
-                     # Dropdown for map type selection
-                     selectInput("mapType", "Density map of:", 
+                     h4(tagList(icon("map-location-dot", lib = "font-awesome"), " Heatmap Input"), style = "font-weight: bold"),
+                     selectInput("mapType", "Density Map of:", 
                                  choices = c("MRT Stations", "Bus Stops"),
-                                 selected = "MRT Stations"),  # Default selection is MRT Stations
+                                 selected = "MRT Stations"),  # default selection is MRT Stations
                      
-                     # Conditional rendering for MRT Line Selection (only shown if MRT Stations is selected)
                      conditionalPanel(
                        condition = "input.mapType == 'MRT Stations'",
                        checkboxGroupInput("mrt_lines", "Select MRT Lines to Display", 
-                                          choices = list(
-                                            "East-West Line" = "ew_line", 
-                                            "North-South Line" = "ns_line",
-                                            "Circle Line" = "cc_line",
-                                            "North East Line" = "ne_line",
-                                            "Downtown Line" = "dt_line",
-                                            "Thomson-East Coast Line" = "te_line",
-                                            "Punggol LRT Line" = "Punggol_LRT_line",
-                                            "Sengkang LRT Line" = "Sengkang_LRT_line",
-                                            "Bukit Panjang LRT Line" = "BukitPanjang_LRT_line"
-                                          ),
-                                          selected = NULL  # No default selection
+                                          choices = sort(unique(mrt_with_planning$mrt_line)),
+                                          selected = NULL
                        )
                      ),
 
                      conditionalPanel(
                        condition = "input.mapType == 'Bus Stops'",
-                       actionButton("select_all_bus_stops", "Show bus stops in all areas"),
-                       checkboxGroupInput("bus_planning_area", "Show bus stops in", 
-                                          choices = list(
-                                            "Ang Mo Kio" = "ANG MO KIO", 
-                                            "Bedok" = "BEDOK", 
-                                            "Bishan" = "BISHAN", 
-                                            "Boon Lay" = "BOON LAY", 
-                                            "Bukit Batok" = "BUKIT BATOK", 
-                                            "Bukit Merah" = "BUKIT MERAH", 
-                                            "Bukit Panjang" = "BUKIT PANJANG", 
-                                            "Bukit Timah" = "BUKIT TIMAH", 
-                                            "Central Water Catchment" = "CENTRAL WATER CATCHMENT", 
-                                            "Changi" = "CHANGI", 
-                                            "Changi Bay" = "CHANGI BAY", 
-                                            "Choa Chu Kang" = "CHOA CHU KANG", 
-                                            "Clementi" = "CLEMENTI", 
-                                            "Downtown Core" = "DOWNTOWN CORE", 
-                                            "Geylang" = "GEYLANG", 
-                                            "Hougang" = "HOUGANG", 
-                                            "Jurong East" = "JURONG EAST", 
-                                            "Jurong West" = "JURONG WEST", 
-                                            "Kallang" = "KALLANG", 
-                                            "Lim Chu Kang" = "LIM CHU KANG", 
-                                            "Mandai" = "MANDAI", 
-                                            "Marine Parade" = "MARINE PARADE", 
-                                            "Marina South" = "MARINA SOUTH", 
-                                            "Museum" = "MUSEUM", 
-                                            "Newton" = "NEWTON", 
-                                            "Novena" = "NOVENA", 
-                                            "Orchard" = "ORCHARD", 
-                                            "Outram" = "OUTRAM", 
-                                            "Pasir Ris" = "PASIR RIS", 
-                                            "Paya Lebar" = "PAYA LEBAR", 
-                                            "Pioneer" = "PIONEER", 
-                                            "Punggol" = "PUNGGOL", 
-                                            "Queenstown" = "QUEENSTOWN", 
-                                            "River Valley" = "RIVER VALLEY", 
-                                            "Rochor" = "ROCHOR", 
-                                            "Serangoon" = "SERANGOON", 
-                                            "Seletar" = "SELETAR", 
-                                            "Sembawang" = "SEMBAWANG", 
-                                            "Sengkang" = "SENGKANG", 
-                                            "Singapore River" = "SINGAPORE RIVER", 
-                                            "Straits View" = "STRAITS VIEW", 
-                                            "Sungei Kadut" = "SUNGEI KADUT", 
-                                            "Tanglin" = "TANGLIN", 
-                                            "Tampines" = "TAMPINES", 
-                                            "Toa Payoh" = "TOA PAYOH", 
-                                            "Tuas" = "TUAS", 
-                                            "Western Water Catchment" = "WESTERN WATER CATCHMENT", 
-                                            "Woodlands" = "WOODLANDS", 
-                                            "Yishun" = "YISHUN"),
-                                          selected = NULL  # Default selection is none
+                       checkboxGroupInput("bus_planning_area", "Show All Bus Stops in", 
+                                          choices = sort(unique(bus_with_planning$pln_area_n)),
+                                          selected = NULL
                        )
                      )
                    ),
                    
-                   # Main Panel for map rendering
                    mainPanel(
-                     
-                     # Conditional rendering for MRT Station Density Map
-                     conditionalPanel(
-                       condition = "input.mapType == 'MRT Stations'", 
-                       # Area of highest/lowest density box
-                       uiOutput("mrt_density_info"),
-                       tags$div(style = "height: 20px;"),
-                       leafletOutput("mrt_station_density_map", height = 700)
+                     h3(
+                       tagList(icon("map", lib = "font-awesome"), " Public Transport Density Map"),
+                       class = "fw-bold"
                      ),
                      
-                     # Conditional rendering for Bus Stop Density Map
+                     conditionalPanel(
+                       condition = "input.mapType == 'MRT Stations'", 
+                       fluidRow(
+                         column(6,
+                                h5(tagList(icon("temperature-high", lib = "font-awesome"), " Area of Highest MRT Density")),
+                                uiOutput("mrt_density_high"),
+                         ),
+                         column(6,
+                                h5(tagList(icon("temperature-low", lib = "font-awesome"), " Area of Lowest MRT Density")),
+                                uiOutput("mrt_density_low"),
+                                )
+                       ),
+                       hr(),
+                       tags$p(
+                         class = "text-muted",
+                         "This interactive map shows MRT density across Singapore’s planning regions — click on any zone to see its station count and national ranking."
+                       ),
+                       leafletOutput("mrt_station_density_map", height = 600)
+                     ),
+                     
+                     
                      conditionalPanel(
                        condition = "input.mapType == 'Bus Stops'", 
-                       # Area of highest/lowest density box
-                       uiOutput("bus_density_info"),
-                       tags$div(style = "height: 20px;"),
-                       leafletOutput("bus_stop_density_map", height = 700)
+                       fluidRow(
+                         column(6,
+                                h5(tagList(icon("temperature-high", lib = "font-awesome"), " Area of Highest Bus Density")),
+                                uiOutput("bus_density_high"),
+                         ),
+                         column(6,
+                                h5(tagList(icon("temperature-low", lib = "font-awesome"), " Area of Lowest Bus Density")),
+                                uiOutput("bus_density_low"),
+                         )
+                       ),
+                       hr(),
+                       tags$p(
+                         class = "text-muted",
+                         "This interactive map shows bus stop density across Singapore’s planning regions — click on any zone to see its stop count and national ranking."
+                       ),
+                       leafletOutput("bus_stop_density_map", height = 600)
                      )
                    )
                  )
                ),
                
-               # --- Travel Reach & Nearby Transport ---
+               # --- Travel Reach ---
                tabPanel(
-                 "Travel Reach & Nearby Transport", value = "commute",
+                 "Travel Reach", value = "commute",
                  sidebarLayout(
                    sidebarPanel(
                      h4(tagList(icon("location-dot", lib = "font-awesome"), " Location Input"), style = "font-weight: bold"),
@@ -214,7 +179,7 @@ shinyUI(
                         Use the input panel to enter your postal code and adjust the travel time range. The map will update to reflect your reachable area, helping you understand commuting convenience from your chosen location."
                      ),
                      
-                     leafletOutput("t2_isochrone_map", height = 500)
+                     leafletOutput("t2_isochrone_map", height = 700)
                    )
                  )
                )

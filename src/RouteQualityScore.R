@@ -6,7 +6,6 @@ library(httr)
 library(jsonlite)
 library(readr)
 
-upcoming_bto <- readRDS("../data/RDS Files/upcoming_bto.rds")
 combine_lat_lng <- function(lat_vector, lng_vector) {
   sprintf("%.7f,%.8f", lat_vector, lng_vector)
 }

@@ -46,7 +46,7 @@ shinyServer(function(input, output, session) {
     updateTabsetPanel(session, "mainTabs", selected = "insights")
   })
   observeEvent(input$go_to_map, {
-    updateTabsetPanel(session, "mainTabs", selected = "commute")
+    updateTabsetPanel(session, "mainTabs", selected = "insights")
   })
   
   
@@ -96,7 +96,6 @@ shinyServer(function(input, output, session) {
   })
   
   # ==== TAB 2: Isochrone Map ====
-  show_isochrone <- reactiveVal(FALSE)
   output$t2_isochrone_map <- renderLeaflet({
     leaflet() %>%
       addTiles(
@@ -106,17 +105,44 @@ shinyServer(function(input, output, session) {
       setView(lng = 103.8198, lat = 1.3521, zoom = 12)
   })
   
+  # If user types in postal code, clear BTO selection
+  observeEvent(input$t2_postal_code, {
+    if (nzchar(input$t2_postal_code)) {
+      updateSelectInput(session, "t2_bto_project", selected = "")
+    }
+  })
+  
+  # If user selects a BTO project, clear postal code
+  observeEvent(input$t2_bto_project, {
+    if (!is.null(input$t2_bto_project) && input$t2_bto_project != "") {
+      updateTextInput(session, "t2_postal_code", value = "")
+    }
+  })
+  
+  # Determine source of coordinates (postal code or selected BTO)
+  get_selected_coords <- reactive({
+    if (!is.null(input$t2_postal_code) && input$t2_postal_code != "") {
+      coords <- tryCatch({
+        get_coords_from_postal(input$t2_postal_code)
+      }, error = function(e) {
+        showNotification("Invalid postal code.", type = "error")
+        return(NULL)
+      })
+      return(coords)
+    } 
+    else if (!is.null(input$t2_bto_project)) {
+      bto_row <- upcoming_bto %>% filter(label == input$t2_bto_project)
+      if (nrow(bto_row) > 0) {
+        return(c(bto_row$lng, bto_row$lat))
+      }
+    }
+    return(NULL)
+  })
+  
   observeEvent(input$t2_show_commute_map, {
-    req(input$t2_postal_code)
-    
-    coords <- tryCatch({
-      get_coords_from_postal(input$t2_postal_code)
-    }, error = function(e) {
-      showNotification("Error retrieving coordinates. Please check postal code.", type = "error")
-      return(NULL)
-    })
-    
+    coords <- get_selected_coords()
     req(coords)
+    
     lng <- coords[1]
     lat <- coords[2]
     
@@ -150,47 +176,82 @@ shinyServer(function(input, output, session) {
 
     
   # ==== TAB 3: Comparing BTO Estates ====
-  observe({
-    output$radar_a <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(80, 75, 85, 90, 80),
-        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-        fill = 'toself', name = "BTO A"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
+  render_radar_chart_by_coords <- function(coord_string) {
+    bto_scores <- rqs_summary %>%
+      filter(Start == coord_string)
     
-    output$radar_b <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(65, 70, 60, 80, 65),
-        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-        fill = 'toself', name = "BTO B"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
+    if (nrow(bto_scores) == 0) return(NULL)
     
-    output$radar_c <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(72, 68, 77, 88, 72),
-        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-        fill = 'toself', name = "BTO C"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
-    
-    output$radar_d <- renderPlotly({
-      plot_ly(
-        type = 'scatterpolar',
-        r = c(55, 60, 58, 75, 55),
-        theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-        fill = 'toself', name = "BTO D"
-      ) %>% layout(polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))), showlegend = FALSE)
-    })
+    plot_ly(
+      type = 'scatterpolar',
+      r = c(bto_scores$Transport, bto_scores$Comfort, bto_scores$Robustness, bto_scores$Service, bto_scores$Transport),
+      theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
+      fill = 'toself',
+      name = coord_string
+    ) %>%
+      layout(
+        polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))),
+        showlegend = FALSE
+      )
+  }
+  
+  
+  output$radar_a <- renderPlotly({
+    req(input$bto_a_postal)
+    render_radar_chart_by_coords(input$bto_a_postal)
   })
   
+  output$radar_b <- renderPlotly({
+    req(input$bto_b_postal)
+    render_radar_chart_by_coords(input$bto_b_postal)
+  })
   
+  output$radar_c <- renderPlotly({
+    req(input$bto_c_postal)
+    render_radar_chart_by_coords(input$bto_c_postal)
+  })
   
+  output$radar_d <- renderPlotly({
+    req(input$bto_d_postal)
+    render_radar_chart_by_coords(input$bto_d_postal)
+  })
+  
+
   # ==== TAB 4: Accessibility Dashboard ====
+  # If user types in postal code, clear BTO selection
+  observeEvent(input$t4_postal_code, {
+    if (nzchar(input$t4_postal_code)) {
+      updateSelectInput(session, "t4_bto_project", selected = "")
+    }
+  })
+  
+  # If user selects a BTO project, clear postal code
+  observeEvent(input$t4_bto_project, {
+    if (!is.null(input$t4_bto_project) && input$t4_bto_project != "") {
+      updateTextInput(session, "t4_postal_code", value = "")
+    }
+  })
+  
+  # Determine source of coordinates (postal code or selected BTO)
+  get_selected_coords <- reactive({
+    if (!is.null(input$t4_postal_code) && input$t4_postal_code != "") {
+      coords <- tryCatch({
+        get_coords_from_postal(input$t4_postal_code)
+      }, error = function(e) {
+        showNotification("Invalid postal code.", type = "error")
+        return(NULL)
+      })
+      return(coords)
+    } 
+    else if (!is.null(input$t4_bto_project)) {
+      bto_row <- upcoming_bto %>% filter(label == input$t4_bto_project)
+      if (nrow(bto_row) > 0) {
+        return(c(bto_row$lng, bto_row$lat))
+      }
+    }
+    return(NULL)
+  })
+  
   # --- Reactive Values to Store Results ---
   accessibility_scores <- reactiveValues(
     overall_score = NULL,

@@ -14,18 +14,19 @@ upcoming_bto <- readRDS(file.path(data_dir, "upcoming_bto.rds"))
 
 #read in bto data
 upcoming_bto$Start <- sprintf("%.7f,%.8f", upcoming_bto$lat, upcoming_bto$lng)
-source("src/RouteQualityScore.R") 
 
-if (exists("results") && !is.null(results$summary)) {
-  rqs_summary <- results$summary %>%
-    mutate(
-      lat = as.numeric(sub(",.*", "", Start)),
-      lng = as.numeric(sub(".*,", "", Start)),
-      Start = sprintf("%.7f,%.8f", lat, lng)
-    )
-} else {
-  stop("Route Quality Score (results$summary) data is missing or not loaded.")
-}
+# source("src/RouteQualityScore.R") 
+# 
+# if (exists("results") && !is.null(results$summary)) {
+#   rqs_summary <- results$summary %>%
+#     mutate(
+#       lat = as.numeric(sub(",.*", "", Start)),
+#       lng = as.numeric(sub(".*,", "", Start)),
+#       Start = sprintf("%.7f,%.8f", lat, lng)
+#     )
+# } else {
+#   stop("Route Quality Score (results$summary) data is missing or not loaded.")
+# }
 
 
 # ==== Use of OneMap API (REUSABLE) ====

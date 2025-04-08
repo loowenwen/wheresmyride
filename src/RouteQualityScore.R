@@ -1,8 +1,67 @@
+
 combine_lat_lng <- function(lat_vector, lng_vector) {
   sprintf("%.7f,%.8f", lat_vector, lng_vector)
 }
 upcoming_bto <- upcoming_bto %>%
   mutate(coordinates = combine_lat_lng(upcoming_bto$lat, upcoming_bto$lng))
+
+get_coordinates_from_postal <- function(postal_code) {
+  # Authenticate with OneMap API
+  auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
+  email <- "loowenwen1314@gmail.com"
+  password <- "sochex-6jobge-fomsYb"
+  
+  auth_body <- list(email = email, password = password)
+  
+  auth_response <- POST(
+    url = auth_url,
+    body = auth_body,
+    encode = "json"
+  )
+  
+  if (status_code(auth_response) != 200) {
+    stop(paste("Authentication failed with status:", status_code(auth_response)))
+  }
+  
+  # Get token from response
+  token <- content(auth_response, as = "parsed")$access_token
+  
+  # Search API endpoint
+  base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+  
+  # Construct request URL
+  request_url <- paste0(base_url, 
+                        "?searchVal=", postal_code,
+                        "&returnGeom=Y",
+                        "&getAddrDetails=Y")
+  
+  # Make API request
+  search_response <- GET(
+    url = request_url,
+    add_headers(Authorization = token)
+  )
+  
+  if (status_code(search_response) != 200) {
+    stop(paste("Search failed with status:", status_code(search_response)))
+  }
+  
+  # Parse response
+  result <- content(search_response, as = "text", encoding = "UTF-8")
+  data <- fromJSON(result)
+  
+  if (data$found == 0) {
+    stop("No results found for this postal code")
+  }
+  
+  # Extract first result (most relevant)
+  first_result <- data$results[1, ]
+  
+  # Format as "lat,long" string
+  coords_string <- paste0(first_result$LATITUDE, ",", first_result$LONGITUDE)
+  
+  return(coords_string)
+}
+
 
 
 #convert postal to lat and long

@@ -187,6 +187,5 @@ generate_fast_isochrone <- function(center_lng, center_lat, duration_mins) {
 ##home tab
 #upcoming bto
 upcoming_btos <- readRDS("data/RDS Files/upcoming_bto.rds")
-upcoming_btos$launchStartDate <- as.POSIXct(upcoming_bto$launchStartDate, format="%Y-%m-%d %H:%M:%S")
-upcoming_btos$launchStartDate <- format(upcoming_bto$launchStartDate, "%d %B %Y")
-
+upcoming_btos$launchStartDate <- as.POSIXct(upcoming_btos$launchStartDate, format="%Y-%m-%d %H:%M:%S")
+upcoming_btos$launchStartDate <- format(upcoming_btos$launchStartDate, "%d %B %Y")

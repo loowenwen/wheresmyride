@@ -6,211 +6,69 @@ library(httr)
 library(jsonlite)
 library(readr)
 
+upcoming_bto <- readRDS("../data/RDS Files/upcoming_bto.rds")
+all_bus_services_frequencies <- readRDS("../data/RDS Files/all_bus_services_frequencies.rds")
+get_coordinates_from_postal <- function(postal_code) {
+  # Authenticate with OneMap API
+  auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
+  email <- "loowenwen1314@gmail.com"
+  password <- "sochex-6jobge-fomsYb"
+  
+  auth_body <- list(email = email, password = password)
+  
+  auth_response <- POST(
+    url = auth_url,
+    body = auth_body,
+    encode = "json"
+  )
+  
+  if (status_code(auth_response) != 200) {
+    stop(paste("Authentication failed with status:", status_code(auth_response)))
+  }
+  
+  # Get token from response
+  token <- content(auth_response, as = "parsed")$access_token
+  
+  # Search API endpoint
+  base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+  
+  # Construct request URL
+  request_url <- paste0(base_url, 
+                        "?searchVal=", postal_code,
+                        "&returnGeom=Y",
+                        "&getAddrDetails=Y")
+  
+  # Make API request
+  search_response <- GET(
+    url = request_url,
+    add_headers(Authorization = token)
+  )
+  
+  if (status_code(search_response) != 200) {
+    stop(paste("Search failed with status:", status_code(search_response)))
+  }
+  
+  # Parse response
+  result <- content(search_response, as = "text", encoding = "UTF-8")
+  data <- fromJSON(result)
+  
+  if (data$found == 0) {
+    stop("No results found for this postal code")
+  }
+  
+  # Extract first result (most relevant)
+  first_result <- data$results[1, ]
+  
+  # Format as "lat,long" string
+  coords_string <- paste0(first_result$LATITUDE, ",", first_result$LONGITUDE)
+  
+  return(coords_string)
+}
+
 combine_lat_lng <- function(lat_vector, lng_vector) {
   sprintf("%.7f,%.8f", lat_vector, lng_vector)
 }
 combined_coords <- combine_lat_lng(upcoming_bto$lat, upcoming_bto$lng)
-
-
-BusFrequencyAnalyzer <- setRefClass(
-  "BusFrequencyAnalyzer",
-  fields = list(
-    api_key = "character",
-    base_url = "character"
-  ),
-  methods = list(
-    initialize = function(api_key) {
-      .self$api_key <- api_key
-      .self$base_url <- "https://datamall2.mytransport.sg/ltaodataservice/"
-    },
-    
-    get_all_bus_services = function() {
-      url <- paste0(.self$base_url, "BusServices")
-      response <- GET(url, add_headers(AccountKey = .self$api_key))
-      content <- content(response, "text", encoding = "UTF-8")
-      fromJSON(content)$value
-    },
-    
-    parse_frequency = function(freq_str) {
-      if (is.null(freq_str) || freq_str == "" || !grepl("-", freq_str)) {
-        return(list(min = NA, max = NA, avg = NA))
-      }
-      
-      parts <- as.numeric(strsplit(freq_str, "-")[[1]])
-      if (length(parts) != 2 || any(is.na(parts))) {
-        return(list(min = NA, max = NA, avg = NA))
-      }
-      
-      list(min = parts[1], max = parts[2], avg = mean(parts))
-    },
-    
-    get_service_frequency = function(service_no) {
-      all_services <- .self$get_all_bus_services()
-      service <- all_services %>% 
-        filter(ServiceNo == service_no) %>%
-        slice(1)  # Take first direction if multiple
-      
-      if (nrow(service) == 0) return(NULL)
-      
-      list(
-        AM_Peak = .self$parse_frequency(service$AM_Peak_Freq),
-        AM_Offpeak = .self$parse_frequency(service$AM_Offpeak_Freq),
-        PM_Peak = .self$parse_frequency(service$PM_Peak_Freq),
-        PM_Offpeak = .self$parse_frequency(service$PM_Offpeak_Freq),
-        ServiceNo = service_no
-      )
-    },
-    
-    get_bus_route_details = function(service_no, direction = 1) {
-      url <- paste0(.self$base_url, "BusRoutes")
-      all_records <- list()
-      offset <- 0
-      
-      repeat {
-        response <- GET(url,
-                        add_headers(AccountKey = .self$api_key),
-                        query = list(
-                          "$filter" = paste0("ServiceNo eq '", service_no, "' and Direction eq ", direction),
-                          "$skip" = offset
-                        ))
-        
-        content <- content(response, "text", encoding = "UTF-8")
-        data <- fromJSON(content)$value
-        
-        if (length(data) == 0) break
-        
-        all_records <- append(all_records, list(data))
-        offset <- offset + 500
-      }
-      
-      if (length(all_records) == 0) return(NULL)
-      bind_rows(all_records)
-    },
-    
-    verify_bus_at_stop = function(bus_no, stop_code) {
-      for (dir in 1:2) {
-        route <- .self$get_bus_route_details(bus_no, dir)
-        if (!is.null(route) && stop_code %in% route$BusStopCode) {
-          return(list(
-            found = TRUE,
-            direction = dir,
-            sequence = which(route$BusStopCode == stop_code)[1],
-            route_data = route
-          ))
-        }
-      }
-      return(list(found = FALSE))
-    },
-    
-    combine_period = function(freq_data, period) {
-      periods <- lapply(freq_data, function(x) x[[period]])
-      valid <- periods[!sapply(periods, function(x) any(is.na(x$avg)))]
-      
-      if (length(valid) == 0) return(list(avg = NA, min = NA, max = NA))
-      
-      freqs <- lapply(valid, function(x) {
-        list(
-          avg = 1/x$avg,
-          min = 1/x$max,
-          max = 1/x$min
-        )
-      })
-      
-      combined_avg <- sum(sapply(freqs, function(x) x$avg))
-      combined_min <- sum(sapply(freqs, function(x) x$min))
-      combined_max <- sum(sapply(freqs, function(x) x$max))
-      
-      list(
-        avg = 1/combined_avg,
-        min = 1/combined_max,
-        max = 1/combined_min,
-        buses_per_hour = combined_avg * 60
-      )
-    },
-    
-    calculate_combined_frequency_at_stop = function(bus_numbers, stop_code) {
-      valid_services <- list()
-      validation_results <- list()
-      
-      for (bus_no in bus_numbers) {
-        verification <- .self$verify_bus_at_stop(bus_no, stop_code)
-        validation_results[[bus_no]] <- verification
-        
-        if (verification$found) {
-          freq_data <- .self$get_service_frequency(bus_no)
-          if (!is.null(freq_data)) {
-            freq_data$direction <- verification$direction
-            valid_services[[length(valid_services) + 1]] <- freq_data
-          }
-        }
-      }
-      
-      if (length(valid_services) == 0) {
-        cat("\nDiagnostics for stop", stop_code, ":\n")
-        for (bus in names(validation_results)) {
-          vr <- validation_results[[bus]]
-          cat(bus, ":", ifelse(vr$found, 
-                               paste("Found in direction", vr$direction),
-                               "NOT found"), "\n")
-        }
-        return(NULL)
-      }
-      
-      combined <- list(
-        AM_Peak = .self$combine_period(valid_services, "AM_Peak"),
-        AM_Offpeak = .self$combine_period(valid_services, "AM_Offpeak"),
-        PM_Peak = .self$combine_period(valid_services, "PM_Peak"),
-        PM_Offpeak = .self$combine_period(valid_services, "PM_Offpeak"),
-        valid_buses = bus_numbers,
-        stop_code = stop_code,
-        directions = sapply(valid_services, function(x) x$direction)
-      )
-      
-      return(combined)
-    },
-    
-    print_stop_frequency = function(combined) {
-      cat("\n=== Combined Frequency at Stop:", combined$stop_code, "===\n")
-      cat("Buses:", paste(combined$valid_buses, collapse = ", "), "\n")
-      
-      periods <- list(
-        AM_Peak = "AM Peak (6:30-8:30)",
-        AM_Offpeak = "AM Offpeak (8:31-16:59)",
-        PM_Peak = "PM Peak (17:00-19:00)",
-        PM_Offpeak = "PM Offpeak (after 19:00)"
-      )
-      
-      for (period in names(periods)) {
-        pdata <- combined[[period]]
-        if (!is.na(pdata$avg)) {
-          cat(periods[[period]], ":\n")
-          cat("  Average wait time:", round(pdata$avg, 1), "minutes\n")
-          cat("  Wait time range:", round(pdata$min, 1), "-", round(pdata$max, 1), "minutes\n")
-          cat("  Effective buses/hour:", round(pdata$buses_per_hour, 1), "\n")
-          
-          lambda <- 1/pdata$avg
-          wait_times <- c(2, 5, 10)
-          probs <- 1 - exp(-lambda * wait_times)
-          cat("  Probability of bus arriving within:\n")
-          for (i in seq_along(wait_times)) {
-            cat(sprintf("    %d minutes: %.1f%%\n", wait_times[i], probs[i]*100))
-          }
-          cat("\n")
-        }
-      }
-    },
-    
-    get_all_bus_stops = function() {
-      url <- paste0(.self$base_url, "BusStops")
-      response <- GET(url, add_headers(AccountKey = .self$api_key))
-      content <- content(response, "text", encoding = "UTF-8")
-      fromJSON(content)$value
-    }
-  )
-)
-
-#usage
-bus_analyzer <- BusFrequencyAnalyzer$new(api_key = "o6OuJxI3Re+qYgFQzb+4+w==")
 
 #convert postal to lat and long
 get_coordinates_from_postal <- function(postal_code) {
@@ -276,13 +134,13 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                email = NULL,
                                password = NULL,
                                token = NULL,
-                               analyzer = bus_analyzer,
+               
                                
-                               initialize = function(email, password, analyzer = NULL) {
+                               initialize = function(email, password) {
                                  self$email <- email
                                  self$password <- password
                                  self$token <- private$get_auth_token()
-                                 self$analyzer <- analyzer
+                         
                                },
                                
                                get_route_data = function(start, end, routeType = "pt", date, time_period, 
@@ -604,11 +462,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  return(round(robustness_score))
                                },
                                
-                              
-                               calculate_route_options_service_quality = function(routes, time_period) {
-                                 if (is.null(self$analyzer)) {
-                                   stop("Bus frequency analyzer not provided")
-                                 }
+                               calculate_route_options_service_quality = function(routes, time_period, freq_data = all_bus_services_frequencies) {
                                  
                                  # Map your time periods to the analyzer's time periods
                                  analyzer_period <- switch(time_period,
@@ -616,80 +470,83 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                                            "Evening Peak (5-7pm)" = "PM_Peak",
                                                            "Daytime Off-Peak (8:30am-5pm)" = "AM_Offpeak",
                                                            "Nighttime Off-Peak (7pm-6:30am)" = "PM_Offpeak",
-                                                          NA  # default if no match
+                                                           NA  # default if no match
                                  )
+                                 
+                                 time_period_avg_column <- paste0(analyzer_period, "_avg")
+                                 all_freqs_raw <- freq_data[[time_period_avg_column]]
+                                 all_freqs <- log(all_freqs_raw[!is.na(all_freqs_raw) & all_freqs_raw > 0])
+                                 
+                                 #intialise
+                                 route_scores <- numeric(nrow(routes))
+                                 
+                                 for (route_id in 1:nrow(routes)) { 
+                                   bus_scores <- NULL
+                                   train_score <- NULL
                                    
-                                 # Calculate scores for all available routes (up to 3)
-                                 route_scores <- sapply(1:length(routes$legs), function(i) {
-                                   # Extract bus numbers and modes for this route
-                                   bus_numbers <- na.omit(routes$legs[[i]]$route[nzchar(routes$legs[[i]]$route) & 
-                                                                                   routes$legs[[i]]$mode == "BUS"])
-                                   has_subway <- "SUBWAY" %in% routes$legs[[i]]$mode
+                                   transport_modes <- routes$legs[[route_id]]$route  
+                                   transport_modes <- transport_modes[transport_modes != ""]
                                    
-                                   # Calculate MRT score if route includes subway
-                                   mrt_score <- if (has_subway) {
-                                     if (analyzer_period %in% c("AM_Peak", "PM_Peak")) {
-                                       20  # 5-7 minutes during peak
-                                     } else {
-                                       80  # 2-3 minutes during off-peak
+                                   # Identify transport modes (improved regex)
+                                   bus_service_nos <- transport_modes[grepl("^[0-9]+$", transport_modes)]  # Only numeric
+                                   train_service_no <- transport_modes[grepl("^[A-Za-z]", transport_modes)]  # Starts with letter
+                                   
+                                   # Skip if no valid services
+                                   if (length(bus_service_nos) == 0 && length(train_service_no) == 0) {
+                                     route_scores[route_id] <- NA
+                                     next
+                                   }
+                                   
+                                   # Bus service scoring
+                                   if (length(bus_service_nos) > 0) {
+                                     bus_scores <- numeric(length(bus_service_nos))
+                                     
+                                     for (bus_idx in seq_along(bus_service_nos)) {  # Changed from i to bus_idx
+                                       bus_service_no <- bus_service_nos[bus_idx]
+                                       
+                                       service_freq <- freq_data[freq_data$ServiceNo == bus_service_no, 
+                                                                 time_period_avg_column][1]  # Ensure single value
+                                       
+                                       if (is.na(service_freq) || service_freq <= 0) {
+                                         bus_scores[bus_idx] <- 0
+                                       } else {
+                                         log_freq <- log(service_freq)
+                                         percentile_rank <- sum(all_freqs <= log_freq, na.rm = TRUE) / length(all_freqs)
+                                         bus_scores[bus_idx] <- round((1 - percentile_rank) * 100)
+                                       }
                                      }
-                                   } else {
-                                     0  # No MRT component
                                    }
                                    
-                                   # Calculate bus score if route includes buses
-                                   bus_score <- if (length(bus_numbers) > 0) {
-                                     # Get frequency data
-                                     freq_data <- lapply(bus_numbers, function(bus_no) self$analyzer$get_service_frequency(bus_no))
-                                     freq_data <- freq_data[!sapply(freq_data, is.null)]
-                                     if (length(freq_data) == 0) return(0)
+                                   # Train service scoring
+                                   if (length(train_service_no) > 0) {
+                                     train_service_no <- train_service_no[1]  # Take first if multiple
+                                     service_freq <- ifelse(analyzer_period %in% c("AM_Peak", "PM_Peak"), 2.5, 6)
                                      
-                                     # Calculate combined wait time for buses
-                                     avg_waits <- sapply(freq_data, function(x) x[[analyzer_period]]$avg)
-                                     avg_waits <- avg_waits[!is.na(avg_waits)]
-                                     if (length(avg_waits) == 0) return(0)
-                                     
-                                     combined_wait <- 1 / mean(1 / avg_waits)
-                                     
-                                     # Convert wait time to score
-                                     case_when(
-                                       combined_wait <= 5  ~ 90,
-                                       combined_wait <= 8  ~ 75,
-                                       combined_wait <= 12 ~ 60,
-                                       TRUE               ~ 40
-                                     )
-                                   } else {
-                                     0  # No bus component
+                                     log_freq <- log(service_freq)
+                                     percentile_rank <- sum(all_freqs <= log_freq, na.rm = TRUE) / length(all_freqs)
+                                     train_score <- round((1 - percentile_rank) * 100)
                                    }
                                    
-                                   # Combine MRT and bus scores (weighted by presence)
-                                   if (has_subway && length(bus_numbers) > 0) {
-                                     mean(c(mrt_score, bus_score))
-                                   } else if (has_subway) {
-                                     mrt_score
-                                   } else if (length(bus_numbers) > 0) {
-                                     bus_score
+                                   # Combine scores
+                                   if (!is.null(bus_scores) && !is.null(train_score)) {
+                                     route_scores[route_id] <- round(mean(c(bus_scores, train_score)))
+                                   } else if (!is.null(bus_scores)) {
+                                     route_scores[route_id] <- round(mean(bus_scores))
                                    } else {
-                                     0  # No public transport in this route
+                                     route_scores[route_id] <- train_score
                                    }
-                                 })
+                                 }
                                  
-                                 # Handle cases with <3 routes
-                                 if (length(route_scores) == 1) {
-                                   return(route_scores[1])
-                                 } 
+                                 #balance best-case, average and reliability
+                                 combined_score <- round(mean(c(
+                                   max(route_scores),       
+                                   mean(route_scores),       
+                                   quantile(route_scores, 0.25)  
+                                 ))) 
                                  
-                                 # Sort scores in descending order
-                                 sorted_scores <- sort(route_scores, decreasing = TRUE)
-                                 
-                                 # Weighted score calculation
-                                 final_score <- 0.6 * sorted_scores[1] +  # Best route
-                                   0.3 * sorted_scores[2] +  # Second-best
-                                   0.1 * sorted_scores[min(3, length(sorted_scores))]  # Worst
-                                 
-                                 max(0, min(100, round(final_score)))
+                                 return(combined_score)
                                },
-                               
+            
                                calculate_rqs = function(start, end, date, time_period, maxWalkDistance = 1000,
                                                          weights = c(transport = 0.25, comfort = 0.25, 
                                                           robustness = 0.25, service = 0.25)) {
@@ -716,12 +573,9 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      transport = round(self$combined_transport_efficiency(routes)),
                                      comfort = round(self$calculate_comfort_score(routes_metrics)),
                                      robustness = self$calculate_robustness_score(fixed_sequences, routes),
-                                     service = if (!is.null(self$analyzer)) {
-                                       self$calculate_route_options_service_quality(routes, time_period)
-                                     } else {
-                                       warning("Service quality score not calculated - no bus analyzer provided")
-                                       0
-                                     }
+                                     service = self$calculate_route_options_service_quality(routes, time_period)
+                                     
+                                    
                                    )
                                  
                                  # Calculate weighted RQS
@@ -812,8 +666,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
 # Initialize with your OneMap credentials and bus analyzer
 route_analyzer <- RouteAnalyzer$new(
   email = "loowenwen1314@gmail.com",
-  password = "sochex-6jobge-fomsYb",
-  analyzer = bus_analyzer # Your initialized BusAnalyzer instance
+  password = "sochex-6jobge-fomsYb"
 )
 
 

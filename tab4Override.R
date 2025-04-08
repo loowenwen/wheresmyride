@@ -85,3 +85,74 @@ observeEvent(input$t4_get_score, {
     print(e)
   })
 })
+
+observeEvent(input$t4_recalculate, {
+  tryCatch({
+    print("DEBUG: t4_recalculate triggered")
+    
+    # Get updated weights and radius from input
+    print(paste("Using updated weights and radius:", input$t4_nearby_radius))
+    
+    # Handle empty time slot fallback
+    time_slots <- input$t4_travel_time_preference
+    if (length(time_slots) == 0) {
+      time_slots <- c("AM_peak", "AM_offpeak", "PM_peak", "PM_offpeak")
+      print("No time slots selected, using default all-day slots.")
+    }
+    print(paste("Selected time slots:", paste(time_slots, collapse = ", ")))
+    
+    # Reuse previously selected location
+    if (!is.null(input$t4_postal_code) && input$t4_postal_code != "") {
+      location_input <- input$t4_postal_code
+    } else if (!is.null(input$t4_bto_project) && input$t4_bto_project != "") {
+      location_input <- get_coords_from_bto(input$t4_bto_project)
+    } else {
+      showNotification("Location not provided. Please select a postal code or BTO.", type = "error")
+      return(NULL)
+    }
+    
+    # Call accessibility function with updated weights and radius
+    result <- predict_accessibility(
+      location_input = location_input,
+      weight_mrt = input$t4_mrt,
+      weight_bus = input$t4_bus,
+      weight_walk = input$t4_walk,
+      weight_congestion = input$t4_congestion,
+      selected_time_slots = time_slots,
+      distance = input$t4_nearby_radius
+    )
+    
+    breakdown <- result$score_breakdown
+    
+    accessibility_scores$overall_score <- round(breakdown$total_score, 1)
+    accessibility_scores$mrt_score <- round(breakdown$score_mrt, 1)
+    accessibility_scores$bus_score <- round(breakdown$score_bus, 1)
+    accessibility_scores$walk_score <- round(breakdown$walkability_score, 1)
+    accessibility_scores$congestion_score <- round(breakdown$congestion_score, 1)
+    
+    accessibility_scores$travel_times <- data.frame(
+      Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
+      `Estimated Travel Time (min)` = sample(10:60, 6)
+    )
+    
+    mrt_df <- result$features$mrt_stop_distances %>%
+      rename(Description = mrt_station, `Distance (m)` = dist) %>%
+      mutate(Type = "MRT") %>%
+      select(Type, Description, `Distance (m)`)
+    
+    bus_df <- result$features$bus_stop_distances %>%
+      rename(`Distance (m)` = dist) %>%
+      mutate(Type = "Bus") %>%
+      select(Type, Description, `Distance (m)`)
+    
+    accessibility_scores$nearby_stops <- bind_rows(mrt_df, bus_df)
+    
+    print(" Recalculation completed.")
+    
+  }, error = function(e) {
+    showNotification("Failed to recalculate accessibility score.", type = "error")
+    print(" ERROR OCCURRED DURING RECALCULATION:")
+    print(e)
+  })
+})
+

@@ -1,74 +1,9 @@
-library(httr)
-library(jsonlite)
-library(dplyr)
-library(purrr)
-library(httr)
-library(jsonlite)
-library(readr)
-
-upcoming_bto <- readRDS("../data/RDS Files/upcoming_bto.rds")
-all_bus_services_frequencies <- readRDS("../data/RDS Files/all_bus_services_frequencies.rds")
-get_coordinates_from_postal <- function(postal_code) {
-  # Authenticate with OneMap API
-  auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
-  email <- "loowenwen1314@gmail.com"
-  password <- "sochex-6jobge-fomsYb"
-  
-  auth_body <- list(email = email, password = password)
-  
-  auth_response <- POST(
-    url = auth_url,
-    body = auth_body,
-    encode = "json"
-  )
-  
-  if (status_code(auth_response) != 200) {
-    stop(paste("Authentication failed with status:", status_code(auth_response)))
-  }
-  
-  # Get token from response
-  token <- content(auth_response, as = "parsed")$access_token
-  
-  # Search API endpoint
-  base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
-  
-  # Construct request URL
-  request_url <- paste0(base_url, 
-                        "?searchVal=", postal_code,
-                        "&returnGeom=Y",
-                        "&getAddrDetails=Y")
-  
-  # Make API request
-  search_response <- GET(
-    url = request_url,
-    add_headers(Authorization = token)
-  )
-  
-  if (status_code(search_response) != 200) {
-    stop(paste("Search failed with status:", status_code(search_response)))
-  }
-  
-  # Parse response
-  result <- content(search_response, as = "text", encoding = "UTF-8")
-  data <- fromJSON(result)
-  
-  if (data$found == 0) {
-    stop("No results found for this postal code")
-  }
-  
-  # Extract first result (most relevant)
-  first_result <- data$results[1, ]
-  
-  # Format as "lat,long" string
-  coords_string <- paste0(first_result$LATITUDE, ",", first_result$LONGITUDE)
-  
-  return(coords_string)
-}
-
 combine_lat_lng <- function(lat_vector, lng_vector) {
   sprintf("%.7f,%.8f", lat_vector, lng_vector)
 }
-combined_coords <- combine_lat_lng(upcoming_bto$lat, upcoming_bto$lng)
+upcoming_bto <- upcoming_bto %>%
+  mutate(coordinates = combine_lat_lng(upcoming_bto$lat, upcoming_bto$lng))
+
 
 #convert postal to lat and long
 get_coordinates_from_postal <- function(postal_code) {
@@ -343,16 +278,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  lapply(route_sequences, fix_single_route)
                                },
                                
-                               extract_route_metrics = function(itinerary) {
-                                 tibble(
-                                   duration = itinerary$duration / 60, # Convert to minutes
-                                   walkTime = itinerary$walkTime / 60,
-                                   transitTime = itinerary$transitTime / 60,
-                                   waitingTime = itinerary$waitingTime / 60,
-                                   transfers = itinerary$transfers
-                                 )
-                               },
-                               
+                               #transport score
                                combined_transport_efficiency = function(routes) {
                                  
                                  transport_scores <- numeric(length(routes))
@@ -386,6 +312,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  return(best_score + second_best + worst)
                                },
                                
+                               #comfort score
                                calculate_comfort_score = function(routes_metrics) {
                                  # Initialize comfort scores vector
                                  comfort_scores <- numeric(nrow(routes_metrics))
@@ -409,13 +336,14 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    comfort_scores[i] <- comfort_score
                                  }
                                  
-                                 # Calculate overall comfort score (weighted average favoring best route)
+                 
                                  sorted_comfort <- sort(comfort_scores, decreasing = TRUE)
                                  overall_comfort <- sorted_comfort[1] * 0.7 + mean(sorted_comfort) * 0.3
                                  
                                  return(overall_comfort)
                                },
                                
+                               #robustness score
                                calculate_robustness_score = function(route_sequences, routes) {
                                  # Component 1: Route Independence (0-40 points)
                                  transport_nodes <- lapply(route_sequences, function(x) {
@@ -592,25 +520,15 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                              },
                                
                                
-                               #convert to coords
-                              convert_to_coords = function(location) {
-                                  if (grepl("^\\d{6}$", location)) {
-                                    return(get_coordinates_from_postal(location))
-                                    }
-                                  return(location)
-                                  },
-                              
-                              
                                
                                
-                               
-                               calculate_multiple_rqs = function(starts, end, date, time_period, maxWalkDistance = 1000,
+                               calculate_multiple_rqs = function(end, date, time_period, maxWalkDistance = 1000,
                                                                  weights = c(transport = 0.25, comfort = 0.25, 
-                                                                             robustness = 0.25, service = 0.25)) {
+                                                                             robustness = 0.25, service = 0.25), starts = upcoming_bto$coordinates) {
                                  
                                  # Process all start points
                                  start_coords <- starts
-                                 end_coord <- self$convert_to_coords(end)
+                                 end_coord <- get_coordinates_from_postal(end)
                                  
                                  # Calculate RQS for each start point
                                  results <- lapply(start_coords, function(start) {
@@ -626,7 +544,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  
                                  # Create summary table
                                  summary_table <- data.frame(
-                                   Start = starts,
+                                   Start = upcoming_bto$town,
                                    RQS = sapply(results, function(x) x$rqs),
                                    Transport = sapply(results, function(x) x$components["transport"]),
                                    Comfort = sapply(results, function(x) x$components["comfort"]),
@@ -672,15 +590,13 @@ route_analyzer <- RouteAnalyzer$new(
 
 #calculate RQS with the equal weights on all components
 results <- route_analyzer$calculate_multiple_rqs(
-  starts = combined_coords,
-  end = "118420",
+  end = "520702",
   date = "03-24-2025",
   time_period = "Morning Peak (6:30-8:30am)",
   weights = c(transport = 0.25, comfort = 0.25, 
-              robustness = 0.25, service = 0.25)# Using time period instead of specific time
+              robustness = 0.25, service = 0.25)
 )
-print(results$summary)  # Summary table of all routes
-
+print(results$summary)  
 
 
 

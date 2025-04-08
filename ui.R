@@ -100,7 +100,7 @@ shinyUI(
                                             "Sengkang LRT Line" = "Sengkang_LRT_line",
                                             "Bukit Panjang LRT Line" = "BukitPanjang_LRT_line"
                                           ),
-                                          selected = NULL  # No default selection
+                                          selected = NULL  
                        )
                      ),
 
@@ -158,7 +158,7 @@ shinyUI(
                                             "Western Water Catchment" = "WESTERN WATER CATCHMENT", 
                                             "Woodlands" = "WOODLANDS", 
                                             "Yishun" = "YISHUN"),
-                                          selected = NULL  # Default selection is none
+                                          selected = NULL  
                        )
                      )
                    ),

@@ -747,17 +747,20 @@ shinyServer(function(input, output, session) {
     accessibility_scores$walk_score <- round(runif(1, 0, 100), 1)
     accessibility_scores$congestion_score <- round(runif(1, 0, 100), 1)
     
+    travel_time_df <- build_travel_time_df(t4_postal_code)
     accessibility_scores$travel_times <- data.frame(
-      Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
-      TravelTime_Min = sample(10:60, 6)
+      Location = travel_time_df$Name,
+      TravelTime_Min = travel_time_df$EstimatedTimeMin
     )
+    
     colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
     
     accessibility_scores$nearby_stops <- data.frame(
-      Type = c("MRT", "MRT", "Bus", "Bus"),
-      Description = c("Tampines", "Simei", "Bus 293", "Bus 10"),
-      Distance_m = sample(100:500, 4)
+      Type = c(rep("MRT", length(mrt_station_names)), rep("Bus", length(nearby_bus_stops))),
+      Description = c(mrt_station_names, nearby_bus_stops),
+      Distance_m = c(mrt_stop_distances, bus_stop_distances)
     )
+    
     colnames(accessibility_scores$nearby_stops)[3] <- "Distance (m)"
     
   })
@@ -868,24 +871,24 @@ shinyServer(function(input, output, session) {
     return(NULL)
   })
 
-  # # --- Optionally Source Custom Logic from testServer.R ---
-  # 
-  # override_file <- "tab4Override.R"
-  # predict_file <- "predict_accessibility.R"
-  # 
-  # if (file.exists(predict_file)) {
-  #   message(" Loading base scoring logic from predict_accessibility.R...")
-  #   source(predict_file, new.env())
-  # } else {
-  #   stop(" Missing required file: predict_accessibility.R")
-  # }
-  # 
-  # if (file.exists(override_file)) {
-  #   message(" Sourcing custom override logic from tab4Override.R...")
-  #   source(override_file, new.env())
-  # } else {
-  #   stop(" Missing override logic file: tab4Override.R")
-  # }
+   # --- Optionally Source Custom Logic from testServer.R ---
+   
+   override_file <- "tab4Override.R"
+   predict_file <- "predict_accessibility.R"
+   
+   if (file.exists(predict_file)) {
+     message(" Loading base scoring logic from predict_accessibility.R...")
+     source(predict_file, new.env())
+   } else {
+     stop(" Missing required file: predict_accessibility.R")
+   }
+   
+   if (file.exists(override_file)) {
+     message(" Sourcing custom override logic from tab4Override.R...")
+     source(override_file, new.env())
+   } else {
+     stop(" Missing override logic file: tab4Override.R")
+   }
   
 
 })

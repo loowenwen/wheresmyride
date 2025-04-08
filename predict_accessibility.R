@@ -10,15 +10,12 @@ library(tidyverse)
 library(lubridate)
 library(readxl)
 library(stringr)
-library(rjson)
 library(httr)
 library(jsonlite)
 library(geosphere)
 library(sf)
 library(purrr)
 library(units)
-
-
 
 
 # AUTHENTICATION
@@ -61,8 +58,28 @@ if (status_code(response) == 200) {
 
 ### MRT Crowd Density by Station
 
+
 parse_crowd_json <- function(filepath) {
-  raw <- fromJSON(filepath)
+  # Read and preprocess JSON content 
+  json_content <- paste0(readLines(filepath, warn = FALSE, encoding = "UTF-8"), collapse = "")
+  json_content <- trimws(json_content)
+  json_content <- sub(",\\s*$", "", json_content)  # Remove trailing comma
+  
+  # Validate JSON
+  if (!jsonlite::validate(json_content)) {
+    stop("Invalid JSON in file: ", filepath)
+  }
+  
+  # Parse JSON with error handling
+  raw <- tryCatch({
+    jsonlite::fromJSON(json_content)
+  }, error = function(e) {
+    message("Error parsing JSON from: ", filepath)
+    message("Error details: ", e$message)
+    message("First 200 chars: ", substr(json_content, 1, 200))
+    stop("Failed to parse JSON")
+  })
+  
   stations_df <- raw$value$Stations[[1]]  # <-- the [1] is KEY
   
   all_intervals <- purrr::map2_dfr(
@@ -93,7 +110,6 @@ parse_crowd_json <- function(filepath) {
   
   return(all_intervals)
 }
-
 # Now use the modified function to parse your MRT crowd data
 
 mrt_crowdDensity <- bind_rows(
@@ -144,7 +160,7 @@ get_bus_routes <- function() {
   repeat {
     response <- GET(url, add_headers(AccountKey = api_key), query = list("$skip" = offset))
     data <- content(response, "text", encoding = "UTF-8")
-    parsed_data <- fromJSON(data, flatten = TRUE)
+    parsed_data <- fromJSON(data)
     
     if (length(parsed_data$value) == 0) break
     all_data <- append(all_data, list(parsed_data$value))
@@ -273,9 +289,10 @@ engineer_features <- function(lat, lon, distance = 500) {
   ### CROWD / VOLUME ANALYSIS
   mrtNames_crowdDensity <- mrt_crowdDensity %>%
     rowwise() %>%
-    mutate(STN_NAME = mrt_lrt$mrt_station[
-      which(str_detect(mrt_lrt$stn_code, Station))[1]
-    ])
+    mutate(STN_NAME = {
+      match_idx <- which(str_detect(mrt_lrt$stn_code, .data$Station))
+      if (length(match_idx) > 0) mrt_lrt$mrt_station[match_idx[1]] else NA_character_
+    })
   
   mrt_crowd_scores <- mrtNames_crowdDensity %>%
     filter(STN_NAME %in% mrt_station_names) %>%

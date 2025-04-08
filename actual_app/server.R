@@ -8,54 +8,149 @@ library(shinyjs)
 library(shiny)
 library(plotly)
 library(tidyverse)
+library(htmlwidgets)
 
 shinyServer(function(input, output, session) {
   useShinyjs()
   
   # ==== TAB 1: Location Overview & Density Maps ====
   
-  observeEvent(input$search_location, {
-    output$location_map <- renderLeaflet({
-      leaflet() %>%
-        addTiles() %>%
-        setView(lng = 103.8198, lat = 1.3521, zoom = 15) %>%
-        addMarkers(
-          lng = c(103.8198, 103.822), lat = c(1.3521, 1.3500),
-          popup = c("Bus Stop A", "MRT Station B")
-        )
-    })
-    
-    output$location_summary <- renderText({
-      paste("Number of Bus Stops: 5\nNumber of MRT Stations: 2\nAverage Distance: 300m")
-    })
-  })
-  
+  mrt_station_data <- read_csv("../data/MRTStations.csv")
+  # Bus Stop Density Map
   output$bus_stop_density_map <- renderLeaflet({
-    palette <- col_numeric(palette = c("white", "darkblue"), domain = bus_stop_density$n)
+    palette <- colorNumeric(palette = c("white", "darkblue"), domain = bus_stop_density$n)
+    
     leaflet() %>%
       addTiles() %>%
       setView(lng = 103.8198, lat = 1.3521, zoom = 12) %>%
       addPolygons(
         data = planning_areas,
         fillColor = ~palette(bus_stop_density$n[match(planning_areas$pln_area_n, bus_stop_density$pln_area_n)]),
-        color = "grey", weight = 1, opacity = 1, fillOpacity = 0.7,
-        popup = ~paste("Region:", pln_area_n,
-                       "<br>Nearby Bus Stops:", bus_stop_density$n[match(pln_area_n, bus_stop_density$pln_area_n)])
+        color = "grey", weight = 2, opacity = 1, fillOpacity = 0.7,
+        popup = ~paste("<strong>", pln_area_n, "</strong>",
+                       "<br>Number of Bus Stops:", bus_stop_density$n[match(pln_area_n, bus_stop_density$pln_area_n)]),
+        layerId = ~pln_area_n,  # Unique layerId for each region
+        highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE)
       )
   })
   
+  # MRT Station Density Map
   output$mrt_station_density_map <- renderLeaflet({
-    palette <- col_numeric(palette = c("white", "darkorchid4"), domain = mrt_station_density$n)
+    palette <- colorNumeric(palette = c("white", "darkorchid4"), domain = mrt_station_density$n)
+    # Convert R objects to JSON for JavaScript to access
+    mrt_station_data_json <- toJSON(mrt_station_data, pretty = TRUE)
+    planning_areas_json <- toJSON(planning_areas, pretty = TRUE)
+    # Create leaflet map
     leaflet() %>%
       addTiles() %>%
       setView(lng = 103.8198, lat = 1.3521, zoom = 12) %>%
+      
+      # Add polygons (planning areas)
       addPolygons(
         data = planning_areas,
         fillColor = ~palette(mrt_station_density$n[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)]),
-        color = "grey", weight = 1, opacity = 1, fillOpacity = 0.7,
-        popup = ~paste("Region:", pln_area_n,
-                       "<br>Nearby MRT Stops:", mrt_station_density$n[match(pln_area_n, mrt_station_density$pln_area_n)])
-      )
+        color = "grey", weight = 2, opacity = 1, fillOpacity = 0.7,
+        popup = ~paste("<strong>", pln_area_n, "</strong>",
+                       "<br>Number of MRT Stations:", mrt_station_density$n[match(pln_area_n, mrt_station_density$pln_area_n)]),
+        layerId = ~pln_area_n,  
+        highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE)
+      ) %>%
+      
+      # Add MRT station markers (just for now without filtering based on the polygon)
+      addMarkers(
+        data = mrt_station_data,
+        lat = ~Latitude,
+        lng = ~Longitude,
+        popup = ~paste("<strong>", STN_NAME, "</strong>", "<br>Station Number:", STN_NO)
+      ) %>%
+      
+      onRender("
+      var map = this;
+      var prevCenter = [1.3521, 103.8198];  // Default center (Singapore)
+      var prevZoom = 12;  // Default zoom level
+      var selectedRegion = null; // Store the clicked polygon layer
+
+      // Convert the passed R data into JavaScript objects
+      var mrt_station_data = " + mrt_station_data_json + ";
+      var planning_areas = " + planning_areas_json + ";
+      
+      // Handle polygon clicks
+      map.on('click', function(e) {
+        var clickedLayer = e.target;
+        
+        // Ensure the clicked object is a polygon
+        if (clickedLayer instanceof L.Polygon) {
+          var bounds = clickedLayer.getBounds();
+          var regionName = clickedLayer.feature.properties.pln_area_n;
+          
+          // Log clicked polygon details
+          console.log('Clicked Polygon:', clickedLayer);
+          
+          // Save the current center and zoom before zooming
+          prevCenter = map.getCenter();
+          prevZoom = map.getZoom();
+          
+          // Zoom to the clicked polygon's bounds
+          map.fitBounds(bounds);
+          
+          // Change color of all polygons to black, except the clicked one
+          map.eachLayer(function(layer) {
+            if (layer instanceof L.Polygon) {
+              if (layer.feature.properties.pln_area_n !== regionName) {
+                layer.setStyle({ fillColor: 'black', color: 'black' });  // Change others to black
+              } else {
+                layer.setStyle({ fillColor: layer.options.fillColor, color: 'grey' });  // Keep the clicked polygon color
+              }
+            }
+          });
+
+          // Filter MRT stations within the clicked polygon's bounds
+          var filteredStations = mrt_station_data.filter(function(station) {
+            var latlng = L.latLng(station.Latitude, station.Longitude);
+            return bounds.contains(latlng);  // Check if the station is inside the polygon's bounds
+          });
+
+          // Log filtered stations
+          console.log('Filtered Stations:', filteredStations);
+          
+          // Remove existing MRT station markers (if any)
+          map.eachLayer(function(layer) {
+            if (layer instanceof L.Marker) {
+              map.removeLayer(layer);
+            }
+          });
+
+          // Add markers for filtered MRT stations
+          filteredStations.forEach(function(station) {
+            L.marker([station.Latitude, station.Longitude])
+              .addTo(map)
+              .bindPopup('<strong>' + station.STN_NAME + '</strong><br>Station Number: ' + station.STN_NO);
+          });
+        }
+      });
+
+      // Back button to restore the original zoom and center
+      var backButton = L.control({ position: 'topright' });
+      backButton.onAdd = function(map) {
+        var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        
+        var button = L.DomUtil.create('button', 'back-button');
+        button.style.backgroundColor = '#fff';
+        button.style.border = 'none';
+        button.style.padding = '10px';
+        button.style.cursor = 'pointer';
+        button.innerHTML = 'Back';
+        
+        L.DomEvent.on(button, 'click', function() {
+          // Restore the previous center and zoom level
+          map.setView(prevCenter, prevZoom);
+        });
+        
+        div.appendChild(button);
+        return div;
+      };
+      backButton.addTo(map);
+    ")
   })
   
   # ==== TAB 2: Accessibility Analysis ====

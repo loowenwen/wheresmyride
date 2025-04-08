@@ -513,6 +513,124 @@ shinyServer(function(input, output, session) {
 
     
   # ==== TAB 3: Comparing BTO Estates ====
+  
+  # Initialize route analyzer
+  route_analyzer <- RouteAnalyzer$new(
+    email = "loowenwen1314@gmail.com",
+    password = "sochex-6jobge-fomsYb"
+  )
+  
+  # Store results
+  rqs_results <- reactiveValues(
+    a = NULL,
+    b = NULL,
+    c = NULL,
+    d = NULL
+  )
+  
+  # Map UI time periods to RQS format
+  rqs_time_period <- reactive({
+    req(input$t3_travel_time_preference)
+    switch(input$t3_travel_time_preference,
+           "AM_peak" = "Morning Peak (6:30-8:30am)",
+           "PM_peak" = "Evening Peak (5-7pm)",
+           "AM_offpeak" = "Daytime Off-Peak (8:30am-5pm)",
+           "PM_offpeak" = "Nighttime Off-Peak (7pm-6:30am)")
+  })
+  
+  # Get coordinates for selected BTO
+  get_bto_coords <- function(bto_label) {
+    req(bto_label, upcoming_bto)
+    upcoming_bto %>% 
+      filter(label == bto_label) %>% 
+      pull(coordinates)
+  }
+  
+  # Calculate RQS for a BTO
+  calculate_single_rqs <- function(bto_label) {
+    req(input$t3_destination_postal, bto_label)
+    
+    bto_coords <- get_bto_coords(bto_label)
+    dest_postal <- input$t3_destination_postal
+    
+    tryCatch({
+      result <- route_analyzer$calculate_multiple_rqs(
+        end = dest_postal,
+        date = "03-24-2025",
+        time_period = rqs_time_period(),
+        starts = bto_coords
+      )
+      return(result$summary)
+    }, error = function(e) {
+      showNotification(paste("Error calculating RQS:", e$message), type = "error")
+      return(NULL)
+    })
+  }
+  
+  # Handle comparison button click
+  observeEvent(input$t3_get_comparison, {
+    req(input$t3_destination_postal)
+    
+    # Validate at least one BTO selected
+    if (is.null(input$t3_bto_a) && is.null(input$t3_bto_b) && 
+        is.null(input$t3_bto_c) && is.null(input$t3_bto_d)) {
+      showNotification("Please select at least one BTO project", type = "warning")
+      return()
+    }
+    
+    # Validate postal code
+    if (!grepl("^\\d{6}$", input$t3_destination_postal)) {
+      showNotification("Please enter a valid 6-digit postal code", type = "warning")
+      return()
+    }
+    
+    # Calculate for each selected BTO
+    if (!is.null(input$t3_bto_a)) rqs_results$a <- calculate_single_rqs(input$t3_bto_a)
+    if (!is.null(input$t3_bto_b)) rqs_results$b <- calculate_single_rqs(input$t3_bto_b)
+    if (!is.null(input$t3_bto_c)) rqs_results$c <- calculate_single_rqs(input$t3_bto_c)
+    if (!is.null(input$t3_bto_d)) rqs_results$d <- calculate_single_rqs(input$t3_bto_d)
+    
+  })
+  
+  # Render radar charts
+  output$t3_radar_a <- renderPlotly({
+    req(rqs_results$a)
+    create_radar_chart(rqs_results$a)
+  })
+  
+  output$t3_radar_b <- renderPlotly({
+    req(rqs_results$b)
+    create_radar_chart(rqs_results$b)
+  })
+  
+  output$t3_radar_c <- renderPlotly({
+    req(rqs_results$c)
+    create_radar_chart(rqs_results$c)
+  })
+  
+  output$t3_radar_d <- renderPlotly({
+    req(rqs_results$d)
+    create_radar_chart(rqs_results$d)
+  })
+  
+  # Radar chart creation function
+  create_radar_chart <- function(rqs_data) {
+    plot_ly(
+      type = 'scatterpolar',
+      r = c(rqs_data$Transport, rqs_data$Comfort, 
+            rqs_data$Robustness, rqs_data$Service, rqs_data$Transport),
+      theta = c("Trip Speed", "Ride Comfort", "Route Reliability", 
+                "Transport Frequency", "Trip Speed"),
+      fill = 'toself',
+      name = rqs_data$Start
+    ) %>%
+      layout(
+        polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))),
+        showlegend = FALSE,
+        margin = list(l = 50, r = 50, b = 50, t = 50)
+      )
+  }
+  
   # render_radar_chart_by_coords <- function(coord_string) {
   #   bto_scores <- rqs_summary %>%
   #     filter(Start == coord_string)
@@ -637,17 +755,20 @@ shinyServer(function(input, output, session) {
     accessibility_scores$walk_score <- round(runif(1, 0, 100), 1)
     accessibility_scores$congestion_score <- round(runif(1, 0, 100), 1)
     
+    travel_time_df <- build_travel_time_df(t4_postal_code)
     accessibility_scores$travel_times <- data.frame(
-      Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
-      TravelTime_Min = sample(10:60, 6)
+      Location = travel_time_df$Name,
+      TravelTime_Min = travel_time_df$EstimatedTimeMin
     )
+    
     colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
     
     accessibility_scores$nearby_stops <- data.frame(
-      Type = c("MRT", "MRT", "Bus", "Bus"),
-      Description = c("Tampines", "Simei", "Bus 293", "Bus 10"),
-      Distance_m = sample(100:500, 4)
+      Type = c(rep("MRT", length(mrt_station_names)), rep("Bus", length(nearby_bus_stops))),
+      Description = c(mrt_station_names, nearby_bus_stops),
+      Distance_m = c(mrt_stop_distances, bus_stop_distances)
     )
+    
     colnames(accessibility_scores$nearby_stops)[3] <- "Distance (m)"
     
   })
@@ -758,24 +879,24 @@ shinyServer(function(input, output, session) {
     return(NULL)
   })
 
-  # # --- Optionally Source Custom Logic from testServer.R ---
-  # 
-  # override_file <- "tab4Override.R"
-  # predict_file <- "predict_accessibility.R"
-  # 
-  # if (file.exists(predict_file)) {
-  #   message(" Loading base scoring logic from predict_accessibility.R...")
-  #   source(predict_file, new.env())
-  # } else {
-  #   stop(" Missing required file: predict_accessibility.R")
-  # }
-  # 
-  # if (file.exists(override_file)) {
-  #   message(" Sourcing custom override logic from tab4Override.R...")
-  #   source(override_file, new.env())
-  # } else {
-  #   stop(" Missing override logic file: tab4Override.R")
-  # }
+   # --- Optionally Source Custom Logic from testServer.R ---
+   
+   override_file <- "tab4Override.R"
+   predict_file <- "predict_accessibility.R"
+   
+   if (file.exists(predict_file)) {
+     message(" Loading base scoring logic from predict_accessibility.R...")
+     source(predict_file, new.env())
+   } else {
+     stop(" Missing required file: predict_accessibility.R")
+   }
+   
+   if (file.exists(override_file)) {
+     message(" Sourcing custom override logic from tab4Override.R...")
+     source(override_file, new.env())
+   } else {
+     stop(" Missing override logic file: tab4Override.R")
+   }
   
 
 })

@@ -15,10 +15,9 @@ upcoming_bto <- readRDS(file.path(data_dir, "upcoming_bto.rds"))
 #read in bto data
 upcoming_bto$Start <- sprintf("%.7f,%.8f", upcoming_bto$lat, upcoming_bto$lng)
 
-# source("src/RouteQualityScore.R") 
-# 
-# if (exists("results") && !is.null(results$summary)) {
-#   rqs_summary <- results$summary %>%
+source("src/RouteQualityScore.R")
+ #if (exists("results") && !is.null(results$summary)) {
+#rqs_summary <- results$summary %>%
 #     mutate(
 #       lat = as.numeric(sub(",.*", "", Start)),
 #       lng = as.numeric(sub(".*,", "", Start)),
@@ -61,7 +60,7 @@ get_onemap_token()
 
 # --- Function: Get Coordinates from Postal Code ---
 get_coords_from_postal <- function(postal_code) {
-  token <- get_onemap_token(force_refresh = TRUE)  # <--- always fresh
+  token <- get_onemap_token(force_refresh = TRUE) 
   
   url <- "https://www.onemap.gov.sg/api/common/elastic/search"
   

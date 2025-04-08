@@ -1,10 +1,3 @@
-
-combine_lat_lng <- function(lat_vector, lng_vector) {
-  sprintf("%.7f,%.8f", lat_vector, lng_vector)
-}
-upcoming_bto <- upcoming_bto %>%
-  mutate(coordinates = combine_lat_lng(upcoming_bto$lat, upcoming_bto$lng))
-
 get_coordinates_from_postal <- function(postal_code) {
   # Authenticate with OneMap API
   auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
@@ -583,7 +576,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                
                                calculate_multiple_rqs = function(end, date, time_period, maxWalkDistance = 1000,
                                                                  weights = c(transport = 0.25, comfort = 0.25, 
-                                                                             robustness = 0.25, service = 0.25), starts = upcoming_bto$coordinates) {
+                                                                             robustness = 0.25, service = 0.25), starts) {
                                  
                                  # Process all start points
                                  start_coords <- starts
@@ -640,22 +633,10 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
 )
 
 
-# Initialize with your OneMap credentials and bus analyzer
-route_analyzer <- RouteAnalyzer$new(
-  email = "loowenwen1314@gmail.com",
-  password = "sochex-6jobge-fomsYb"
-)
 
 
-#calculate RQS with the equal weights on all components
-results <- route_analyzer$calculate_multiple_rqs(
-  end = "520702",
-  date = "03-24-2025",
-  time_period = "Morning Peak (6:30-8:30am)",
-  weights = c(transport = 0.25, comfort = 0.25, 
-              robustness = 0.25, service = 0.25)
-)
-print(results$summary)  
+
+
 
 
 

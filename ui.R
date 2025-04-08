@@ -231,8 +231,8 @@ shinyUI(
                  selectInput("t3_bto_c", "Select BTO C:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
                  selectInput("t3_bto_d", "Select BTO D:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
                  
-                 textInput("t3_destionation_postal", "Enter Destination Postal Code:", placeholder = "e.g., 123456"),
-                 
+                 textInput("t3_destination_postal", "Enter Destination Postal Code:", placeholder = "e.g., 123456"),
+                  
                  tags$div(
                    class = "form-group",
                    tags$label(
@@ -250,9 +250,9 @@ shinyUI(
                  radioButtons("t3_travel_time_preference", label = NULL,
                               choices = c(
                                 "AM Peak (6:30–8:30am)" = "AM_peak",
-                                "AM Off-Peak (8:31am–4:59pm)" = "AM_offpeak",
+                                "AM Off-Peak (8:30am–5pm)" = "AM_offpeak",
                                 "PM Peak (5–7pm)" = "PM_peak",
-                                "PM Off-Peak (7pm–)" = "PM_offpeak"
+                                "PM Off-Peak (7pm–6:30am)" = "PM_offpeak"
                               ),
                               selected = "AM_peak"
                  ),

@@ -345,15 +345,15 @@ normalised_score <- function(features,
   # ---- Normalise/scale scores ----
   # MRT score (distance excluded)
   score_mrt <- min(1, mean(c(
-    ifelse(is.na(features$num_mrt_stations), 0, features$num_mrt_stations / 3),
-    ifelse(is.na(features$num_unique_mrt_lines), 0, features$num_unique_mrt_lines / 3)
-  ))) * 100
+    ifelse(is.na(features$num_mrt_stations), 0, min(features$num_mrt_stations / 3, 1)),
+    ifelse(is.na(features$num_unique_mrt_lines), 0, min(features$num_unique_mrt_lines / 3, 1))
+    ))) * 100
   
   # Bus score (distance excluded)
   score_bus <- min(1, mean(c(
-    ifelse(is.na(features$num_bus_stops), 0, features$num_bus_stops / 20),
-    ifelse(is.na(features$num_unique_bus_services), 0, features$num_unique_bus_services / 30)
-  ))) * 100
+    ifelse(is.na(features$num_bus_stops), 0, min(features$num_bus_stops / 20, 1)),
+    ifelse(is.na(features$num_unique_bus_services), 0, min(features$num_unique_bus_services / 30, 1))
+    ))) * 100
   
   # Walkability (distance included)
   norm_mrt_dist <- max(0, 1 - (ifelse(is.na(features$avg_dist_mrt), features$distance_radius, features$avg_dist_mrt) / features$distance_radius))

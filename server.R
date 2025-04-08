@@ -13,15 +13,60 @@ shinyServer(function(input, output, session) {
   useShinyjs()
   
   # ==== Home Tab ====
-  # --- Render BTO Map -- 
+  # --- Render BTO Map --- 
   output$bto_map <- renderLeaflet({
-    leaflet(upcoming_btos) %>%
+    leaflet() %>%
       addProviderTiles(providers$CartoDB.Positron) %>%
+      
+      # --- BTO Markers ---
       addMarkers(
+        data = upcoming_bto,
         ~lng, ~lat,
-        popup = ~paste0("<b>", town, "</b><br>Launch Date: ", launchStartDate)
+        popup = ~paste0(
+          "<h5>", town, "</h5>",
+          "<p><strong>Available Flat Types:</strong><br>", flatType, "</p>",
+          "<p><strong>BTO Exercise:</strong> ",
+          format(as.Date(paste0(ballotQtr, "-01")), "%B %Y"), "</p></div>"
+        ),
+        group = "BTO Sites"
       ) %>%
-      setView(lng = 103.8198, lat = 1.3521, zoom = 11)  # Set the initial view for the map
+      
+      # --- MRT Stations ---
+      addCircleMarkers(
+        data = mrt_with_planning,
+        ~centroid_lon, ~centroid_lat,
+        radius = 4,
+        color = "#c1121f",
+        fillOpacity = 0.9,
+        stroke = FALSE,
+        label = ~paste0("Station Name: ", mrt_station),
+        popup = ~paste0("<h5>", mrt_station, "</h5>",
+                        "<p><strong>MRT Line:</strong><br>", mrt_line, "</p>"),
+        group = "MRT Stations"
+      ) %>%
+      
+      # --- Bus Interchanges ---
+      addCircleMarkers(
+        data = bus_with_planning,
+        ~Longitude, ~Latitude,
+        radius = 3,
+        color = "#669bbc",
+        fillOpacity = 0.9,
+        stroke = FALSE,
+        label = ~paste0("Bus Stop Code: ", BusStopCode),
+        popup = ~paste0("<h5>", BusStopCode, "</h5>",
+                        "<p><strong>Description:</strong><br>", Description, "</p>",
+                        "<p><strong>Road Name:</strong><br>", RoadName, "</p>"),
+        group = "Bus Interchanges"
+      ) %>%
+      
+      # --- Layers Control ---
+      addLayersControl(
+        overlayGroups = c("BTO Sites", "MRT Stations", "Bus Interchanges"),
+        options = layersControlOptions(collapsed = FALSE)
+      ) %>%
+      
+      setView(lng = 103.8198, lat = 1.3521, zoom = 11)
   })
   
   # --- Navigation Logic ---

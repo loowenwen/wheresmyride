@@ -32,25 +32,25 @@ shinyUI(
                  column(3, actionLink("go_heatmap", label = tagList(
                    icon("map", lib = "font-awesome", style = "font-size: 28px"),
                    h5("Transport Heatmap", style = "font-weight: bold"),
-                   p("See which regions have the highest density of bus stops and MRT stations.")
+                   p("Analyze transport coverage by exploring the density and distribution of bus stops and MRT stations across different regions.")
                  ), style = "text-decoration: none")),
                  
                  column(3, actionLink("go_commute", label = tagList(
                    icon("location-dot", lib = "font-awesome", style = "font-size: 28px"),
                    h5("Travel Reach & Nearby Transport", style = "font-weight: bold"),
-                   p("Discover how far you can travel within 15–45 minutes by public transport, and find the nearest bus stops and MRT stations around your location.")
+                   p("Discover how far you can travel within 5–60 minutes by public transport from the selected BTO project or a specified location using postal code.")
                  ), style = "text-decoration: none")),
                  
                  column(3, actionLink("go_compare", label = tagList(
                    icon("balance-scale", lib = "font-awesome", style = "font-size: 28px"),
                    h5("BTO Transport Comparison", style = "font-weight: bold"),
-                   p("Compare public transport quality across BTO projects based on commute comfort, efficiency, and accessibility to your destination.")
+                   p("Compare public transport quality across BTO projects based on commute comfort, speed, and overall connectivity to your destination.")
                  ), style = "text-decoration: none")),
                  
                  column(3, actionLink("go_insights", label = tagList(
                    icon("chart-line", lib = "font-awesome", style = "font-size: 28px"),
                    h5("Transport Access Dashboard", style = "font-weight: bold"),
-                   p("Get personalized insights into public transport accessibility by postal code. View model-based scores, congestion trends, and identify service gaps near your location.")
+                   p("Get personalized insights into public transport accessibility for each BTO project or by postal code. View model-based scores, congestion trends, and identify service gaps near your location.")
                  ), style = "text-decoration: none"))
                ),
                br(),
@@ -78,8 +78,6 @@ shinyUI(
                # --- Transport Heatmap ---
                tabPanel(
                  "Transport Heatmap", value = "heatmap",
-                 
-                 # Sidebar Layout
                  sidebarLayout(
                    sidebarPanel(
                      # Dropdown for map type selection
@@ -185,6 +183,38 @@ shinyUI(
                        tags$div(style = "height: 20px;"),
                        leafletOutput("bus_stop_density_map", height = 700)
                      )
+                   )
+                 )
+               ),
+               
+               # --- Travel Reach & Nearby Transport ---
+               tabPanel(
+                 "Travel Reach & Nearby Transport", value = "commute",
+                 sidebarLayout(
+                   sidebarPanel(
+                     h4(tagList(icon("location-dot", lib = "font-awesome"), " Location Input"), style = "font-weight: bold"),
+                     textInput("t2_postal_code", "Enter Postal Code:",
+                               placeholder = "e.g., 123456"),
+                     selectInput("t2_bto_project", "Or Select a BTO Project:",
+                                 choices = c("Select a BTO Project" = "", upcoming_bto$label)),
+                     selectInput("t2_time", "Travel Time (minutes):", choices = c(5, 10, 15, 30, 45, 60), selected = 15),
+                     actionButton("t2_show_commute_map", "Show Map", icon = icon("map-location-dot")),
+                   ),
+                   
+                   mainPanel(
+                     h3(
+                       tagList(icon("map", lib = "font-awesome"), " Isochrone Visualisation"),
+                       class = "fw-bold"
+                     ),
+                     uiOutput("t4_score_display"),
+                     uiOutput("t4_score_interpretation"),
+                     tags$p(
+                       class = "text-muted",
+                       "This map shows how far you can travel from your selected location within different time intervals by public transport. The shaded zones represent estimated reachable areas within 5, 10, 15, 30, 45 and 60 minutes of travel time.
+                        Use the input panel to enter your postal code and adjust the travel time range. The map will update to reflect your reachable area, helping you understand commuting convenience from your chosen location."
+                     ),
+                     
+                     leafletOutput("t2_isochrone_map", height = 500)
                    )
                  )
                )

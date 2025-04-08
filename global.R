@@ -48,15 +48,15 @@ get_onemap_token <- function(force_refresh = FALSE) {
       Sys.setenv(ONEMAP_TOKEN = data$access_token)
       return(data$access_token)
     } else {
-      stop(paste(status_code(response)))
+      stop(paste("Failed to get token. Status code:", status_code(response)))
     }
   }
   
   return(current_token)
 }
 
-# Immediately Refresh on App Launch
-get_onemap_token(force_refresh = TRUE)
+# Get token once (only if not already present)
+get_onemap_token()
 
 
 # --- Function: Get Coordinates from Postal Code ---

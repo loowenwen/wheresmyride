@@ -698,5 +698,27 @@ shinyServer(function(input, output, session) {
     }
     return(NULL)
   })
+
+  # --- Optionally Source Custom Logic from testServer.R ---
+  
+  override_file <- "tab4Override.R"
+  predict_file <- "predict_accessibility.R"
+  
+  if (file.exists(predict_file)) {
+    message(" Loading base scoring logic from predict_accessibility.R...")
+    source(predict_file, new.env())
+  } else {
+    stop(" Missing required file: predict_accessibility.R")
+  }
+  
+  if (file.exists(override_file)) {
+    message(" Sourcing custom override logic from tab4Override.R...")
+    source(override_file, new.env())
+  } else {
+    stop(" Missing override logic file: tab4Override.R")
+  }
+  
+
+})
   
 })

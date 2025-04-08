@@ -107,6 +107,23 @@ mrt_stations_final <- train_station_codes %>%
   rename(mrt_station = mrt_station_english, 
          mrt_line = mrt_line_english)
 
+mrt_stations_final %>%
+  group_by(mrt_station) %>%
+  summarise(
+    stn_code_combined = paste(unique(stn_code), collapse = ", "),
+    mrt_line_combined = paste(unique(mrt_line), collapse = ", "),
+    n = n()
+  ) %>%
+  filter(n > 1)
+
+combined_codes <- mrt_stations_final %>%
+  group_by(mrt_station) %>%
+  summarise(stn_code_combined = paste(unique(stn_code), collapse = ", "),
+            mrt_line_combined = paste(unique(mrt_line), collapse = ", "))
+
+mrt_stations_final <- mrt_stations_final %>%
+  left_join(combined_codes, by = "mrt_station")
+
 # save as RDS
 saveRDS(mrt_stations_final, file = "data/RDS Files/mrt_stations.rds")
 
@@ -124,6 +141,7 @@ mrt_sf <- st_sf(mrt_stations, geometry = mrt_stations$centroid)
 mrt_sf <- st_transform(mrt_sf, 4326)
 
 # join each MRT station to the planning area it falls within
+planning_areas <- st_make_valid(planning_areas)
 mrt_with_planning <- st_join(mrt_sf, planning_areas, join = st_within, largest = TRUE)
 
 mrt_with_planning %>%
@@ -155,8 +173,6 @@ bus_with_planning <- bus_with_planning %>%
 # save as RDS
 saveRDS(bus_with_planning, file = "data/RDS Files/bus_with_planning.rds")
 
-
-# load RDS objects
 
 
 

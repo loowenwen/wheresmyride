@@ -41,7 +41,8 @@ shinyServer(function(input, output, session) {
         stroke = FALSE,
         label = ~paste0("Station Name: ", mrt_station),
         popup = ~paste0("<h5>", mrt_station, "</h5>",
-                        "<p><strong>MRT Line:</strong><br>", mrt_line, "</p>"),
+                        "<p><strong>MRT Line:</strong><br>", mrt_line_combined, "</p>",
+                        "<p><strong>Station Code:</strong><br>", stn_code_combined, "</p>"),
         group = "MRT Stations"
       ) %>%
       

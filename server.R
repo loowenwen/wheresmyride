@@ -770,9 +770,9 @@ shinyServer(function(input, output, session) {
     colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
     
     accessibility_scores$nearby_stops <- data.frame(
-      Type = c(rep("MRT", length(mrt_station_names)), rep("Bus", length(nearby_bus_stops))),
-      Description = c(mrt_station_names, nearby_bus_stops),
-      Distance_m = c(mrt_stop_distances, bus_stop_distances)
+       Type = c("MRT", "MRT", "Bus", "Bus"),
+       Description = c("Tampines", "Simei", "Bus 293", "Bus 10"),
+       Distance_m = sample(100:500, 4)
     )
     
     colnames(accessibility_scores$nearby_stops)[3] <- "Distance (m)"

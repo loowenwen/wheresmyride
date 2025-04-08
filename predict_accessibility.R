@@ -2,8 +2,6 @@
 
 # predict_accessibility.R
 
-setwd("~/Desktop/DSE MODS/DSE3101/Project/wheresmyride")
-
 print("✅ Loaded latest predict_accessibility() from predict_accessibility.R")
 
 rm(list = ls())

@@ -105,7 +105,7 @@ shinyUI(
                                           selected = NULL  # No default selection
                        )
                      ),
-                     
+
                      conditionalPanel(
                        condition = "input.mapType == 'Bus Stops'",
                        actionButton("select_all_bus_stops", "Show bus stops in all areas"),
@@ -164,6 +164,7 @@ shinyUI(
                        )
                      )
                    ),
+                   
                    # Main Panel for map rendering
                    mainPanel(
                      
@@ -186,7 +187,8 @@ shinyUI(
                      )
                    )
                  )
-               ),
+               )
+    ),
                
     # --- BTO Transport Comparison ---
     tabPanel("BTO Transport Comparison", value = "compare",

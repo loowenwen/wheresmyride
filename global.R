@@ -3,6 +3,7 @@ library(sf)
 library(readr)
 library(tidyr)
 library(lubridate)
+library(httr)
 
 # ---- Load Required Data ----
 data_dir <- "data/RDS Files"

@@ -13,23 +13,15 @@ shinyServer(function(input, output, session) {
   useShinyjs()
   
   # ==== Home Tab ====
-  # --- Dummy Data for BTO Locations ---
-  bto_dummy <- data.frame(
-    project_name = c("Tampines North Grove", "Woodlands Spring", "Bukit Batok Vista"),
-    lat = c(1.3700, 1.4370, 1.3480),
-    lng = c(103.9400, 103.7860, 103.7490),
-    launch_date = c("Jun 2025", "Sep 2025", "Dec 2025")
-  )
-  
   # --- Render BTO Map -- 
   output$bto_map <- renderLeaflet({
-    leaflet(bto_dummy) %>%
+    leaflet(upcoming_btos) %>%
       addProviderTiles(providers$CartoDB.Positron) %>%
       addMarkers(
         ~lng, ~lat,
-        popup = ~paste0("<b>", project_name, "</b><br>Launch Date: ", launch_date)
+        popup = ~paste0("<b>", town, "</b><br>Launch Date: ", launchStartDate)
       ) %>%
-      setView(lng = 103.8198, lat = 1.3521, zoom = 11)
+      setView(lng = 103.8198, lat = 1.3521, zoom = 11)  # Set the initial view for the map
   })
   
   # --- Navigation Logic ---
@@ -51,49 +43,335 @@ shinyServer(function(input, output, session) {
   
   
   # ==== TAB 1: Location Overview & Density Maps ====
-  observeEvent(input$search_location, {
-    output$location_map <- renderLeaflet({
-      leaflet() %>%
-        addTiles() %>%
-        setView(lng = 103.8198, lat = 1.3521, zoom = 15) %>%
-        addMarkers(
-          lng = c(103.8198, 103.822), lat = c(1.3521, 1.3500),
-          popup = c("Bus Stop A", "MRT Station B")
-        )
-    })
+  # MRT Station Density Map
+  output$mrt_density_info <- renderUI({
+    if (input$mapType != "MRT Stations") return(NULL)
     
-    output$location_summary <- renderText({
-      paste("Number of Bus Stops: 5\nNumber of MRT Stations: 2\nAverage Distance: 300m")
-    })
-  })
-  
-  output$bus_stop_density_map <- renderLeaflet({
-    palette <- col_numeric(palette = c("white", "darkblue"), domain = bus_stop_density$n)
-    leaflet() %>%
-      addTiles() %>%
-      setView(lng = 103.8198, lat = 1.3521, zoom = 12) %>%
-      addPolygons(
-        data = planning_areas,
-        fillColor = ~palette(bus_stop_density$n[match(planning_areas$pln_area_n, bus_stop_density$pln_area_n)]),
-        color = "grey", weight = 1, opacity = 1, fillOpacity = 0.7,
-        popup = ~paste("Region:", pln_area_n,
-                       "<br>Nearby Bus Stops:", bus_stop_density$n[match(pln_area_n, bus_stop_density$pln_area_n)])
+    # Calculate highest and lowest density
+    highest_density <- max(mrt_station_density$n)
+    lowest_density <- min(mrt_station_density$n)
+    
+    highest_area <- mrt_station_density$pln_area_n[which.max(mrt_station_density$n)]
+    lowest_area <- mrt_station_density$pln_area_n[which.min(mrt_station_density$n)]
+    
+    tagList(
+      div(
+        style = "background-color: #f9f9f9; padding: 10px; border: 1px solid #ccc;",
+        h4("Density Information"),
+        p(paste("Area of highest density: ", highest_area, " with ", highest_density, " MRT stations.")),
+        p(paste("Area of lowest density: ", lowest_area, " with ", lowest_density, " MRT stations."))
       )
+    )
   })
   
   output$mrt_station_density_map <- renderLeaflet({
-    palette <- col_numeric(palette = c("white", "darkorchid4"), domain = mrt_station_density$n)
-    leaflet() %>%
+    if (input$mapType != "MRT Stations") return(NULL)
+    
+    # Create the color palette for MRT stations polygons
+    palette <- colorNumeric(palette = c("white", "black"), domain = mrt_station_density$n)
+    
+    # Initialize the map with polygons only (no markers)
+    map <- leaflet() %>%
       addTiles() %>%
       setView(lng = 103.8198, lat = 1.3521, zoom = 12) %>%
       addPolygons(
         data = planning_areas,
         fillColor = ~palette(mrt_station_density$n[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)]),
-        color = "grey", weight = 1, opacity = 1, fillOpacity = 0.7,
-        popup = ~paste("Region:", pln_area_n,
-                       "<br>Nearby MRT Stops:", mrt_station_density$n[match(pln_area_n, mrt_station_density$pln_area_n)])
+        color = "grey", weight = 2, opacity = 1, fillOpacity = 0.7,
+        popup = ~paste("<strong>", pln_area_n, "</strong>",
+                       "<br>Number of MRT Stations:", 
+                       mrt_station_density$n[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)]),
+        layerId = ~pln_area_n
       )
+    
+    # Only add markers if a checkbox is selected
+    if (length(input$mrt_lines) > 0) {
+      filtered_data <- list()
+      
+      # Add data for each selected MRT line
+      if ("ew_line" %in% input$mrt_lines) {
+        filtered_data <- append(filtered_data, list(ew_line))
+      }
+      if ("ns_line" %in% input$mrt_lines) {
+        filtered_data <- append(filtered_data, list(ns_line))
+      }
+      if ("cc_line" %in% input$mrt_lines) {
+        filtered_data <- append(filtered_data, list(cc_line))
+      }
+      if ("ne_line" %in% input$mrt_lines) {
+        filtered_data <- append(filtered_data, list(ne_line))
+      }
+      if ("dt_line" %in% input$mrt_lines) {
+        filtered_data <- append(filtered_data, list(dt_line))
+      }
+      if ("te_line" %in% input$mrt_lines) {
+        filtered_data <- append(filtered_data, list(te_line))
+      }
+      if ("Punggol_LRT_line" %in% input$mrt_lines) {
+        filtered_data <- append(filtered_data, list(Punggol_LRT_line))
+      }
+      if ("Sengkang_LRT_line" %in% input$mrt_lines) {
+        filtered_data <- append(filtered_data, list(Sengkang_LRT_line))
+      }
+      if ("BukitPanjang_LRT_line" %in% input$mrt_lines) {
+        filtered_data <- append(filtered_data, list(BukitPanjang_LRT_line))
+      }
+      
+      # Combine filtered data for selected MRT lines
+      filtered_data <- bind_rows(filtered_data)
+      
+      # Check if the filtered data contains the necessary columns before adding markers
+      if ("Latitude" %in% colnames(filtered_data) && "Longitude" %in% colnames(filtered_data)) {
+        # Add MRT station markers to the map using STN_NAME for the popup and STN_NO for station number
+        map <- map %>%
+          addCircleMarkers(
+            data = filtered_data,
+            lat = ~Latitude,           # Use the 'Latitude' column for latitude
+            lng = ~Longitude,          # Use the 'Longitude' column for longitude
+            radius = 6,   # Set the radius of the circle marker (adjust as needed)
+            weight = 2,  
+            opacity = 1,    
+            stroke = TRUE,
+            color = "black",
+            fillColor = ~colour,            # Use the 'color' column for the color of the circle
+                       # Set the opacity of the circle
+            fillOpacity = 1,         # Set the fill opacity
+            popup = ~paste("<strong>", STN_NAME, "</strong>",  # Use STN_NAME for station name
+                           "<br>Station No:", STN_NO)  # Use STN_NO for station number
+          )
+      }
+    }
+    
+    return(map)
   })
+  
+  
+  # Bus Stop Density Map
+  output$bus_density_info <- renderUI({
+    if (input$mapType != "Bus Stops") return(NULL)
+    
+    # Calculate highest and lowest density
+    highest_density <- max(bus_stop_density$n)
+    lowest_density <- min(bus_stop_density$n)
+    
+    highest_area <- bus_stop_density$pln_area_n[which.max(bus_stop_density$n)]
+    lowest_area <- bus_stop_density$pln_area_n[which.min(bus_stop_density$n)]
+    
+    tagList(
+      div(
+        style = "background-color: #f9f9f9; padding: 10px; border: 1px solid #ccc;",
+        h4("Density Information"),
+        p(paste("Area of highest density: ", highest_area, " with ", highest_density, " bus stops.")),
+        p(paste("Area of lowest density: ", lowest_area, " with ", lowest_density, " bus stops."))
+      )
+    )
+  })
+  
+  output$bus_stop_density_map <- renderLeaflet({
+    # Only render map if Show Map is True and map type is 'Bus Stops'
+    if (input$mapType != "Bus Stops") return(NULL)
+    
+    # Create the color palette for bus stops (example)
+    palette <- colorNumeric(palette = c("white", "black"), domain = bus_stop_density$n)
+    
+    # Initialize map
+    map <- leaflet() %>%
+      addTiles() %>%
+      setView(lng = 103.8198, lat = 1.3521, zoom = 12)
+    
+    # Add planning area polygons to the map
+    map <- map %>%
+      addPolygons(
+        data = planning_areas,  # Replace with actual planning areas data
+        fillColor = ~palette(bus_stop_density$n[match(planning_areas$pln_area_n, bus_stop_density$pln_area_n)]),
+        color = "grey",
+        weight = 2,
+        opacity = 1,
+        fillOpacity = 0.7,
+        popup = ~paste("<strong>", pln_area_n, "</strong>",
+                       "<br>Number of Bus Stops:", bus_stop_density$n[match(pln_area_n, bus_stop_density$pln_area_n)]),
+        layerId = ~pln_area_n
+      )
+    
+    # Only add markers if a checkbox is selected
+    if (length(input$bus_planning_area) > 0) {
+      # Initialize the list to store filtered data for each selected planning area
+      filtered_data <- list()
+      
+      # Add data for each selected planning area (like df_[pln_area_n])
+      if ("ROCHOR" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_ROCHOR))
+      }
+      if ("DOWNTOWN CORE" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_DOWNTOWN_CORE))
+      }
+      if ("KALLANG" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_KALLANG))
+      }
+      if ("OUTRAM" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_OUTRAM))
+      }
+      if ("MARINA SOUTH" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_MARINA_SOUTH))
+      }
+      if ("STRAITS VIEW" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_STRAITS_VIEW))
+      }
+      if ("MUSEUM" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_MUSEUM))
+      }
+      if ("SINGAPORE RIVER" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_SINGAPORE_RIVER))
+      }
+      if ("BUKIT MERAH" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_BUKIT_MERAH))
+      }
+      if ("ORCHARD" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_ORCHARD))
+      }
+      if ("RIVER VALLEY" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_RIVER_VALLEY))
+      }
+      if ("TANGLIN" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_TANGLIN))
+      }
+      if ("QUEENSTOWN" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_QUEENSTOWN))
+      }
+      if ("BUKIT TIMAH" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_BUKIT_TIMAH))
+      }
+      if ("CLEMENTI" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_CLEMENTI))
+      }
+      if ("SOUTHERN ISLANDS" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_SOUTHERN_ISLANDS))
+      }
+      if ("JURONG EAST" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_JURONG_EAST))
+      }
+      if ("JURONG WEST" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_JURONG_WEST))
+      }
+      if ("BOON LAY" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_BOON_LAY))
+      }
+      if ("PIONEER" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_PIONEER))
+      }
+      if ("WESTERN WATER CATCHMENT" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_WESTERN_WATER_CATCHMENT))
+      }
+      if ("TUAS" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_TUAS))
+      }
+      if ("CHOA CHU KANG" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_CHOACHUKANG))
+      }
+      if ("TENGAH" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_TENGAH))
+      }
+      if ("LIM CHU KANG" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_LIMCHUKANG))
+      }
+      if ("NEWTON" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_NEWTON))
+      }
+      if ("NOVENA" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_NOVENA))
+      }
+      if ("CENTRAL WATER CATCHMENT" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_CENTRAL_WATER_CATCHMENT))
+      }
+      if ("BUKIT BATOK" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_BUKIT_BATOK))
+      }
+      if ("BUKIT PANJANG" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_BUKIT_PANJANG))
+      }
+      if ("SUNGEI KADUT" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_SUNGEI_KADUT))
+      }
+      if ("WOODLANDS" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_WOODLANDS))
+      }
+      if ("SEMBAWANG" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_SEMBWANG))
+      }
+      if ("MANDAI" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_MANDAI))
+      }
+      if ("YISHUN" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_YISHUN))
+      }
+      if ("TOA PAYOH" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_TOA_PAYOH))
+      }
+      if ("BISHAN" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_BISHAN))
+      }
+      if ("ANG MO KIO" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_ANG_MO_KIO))
+      }
+      if ("SERANGOON" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_SERANGOON))
+      }
+      if ("SENGKANG" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_SENGKANG))
+      }
+      if ("GEYLANG" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_GEYLANG))
+      }
+      if ("HOUGANG" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_HOUGANG))
+      }
+      if ("PAYA LEBAR" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_PAYA_LEBAR))
+      }
+      if ("PUNGGOL" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_PUNGGOL))
+      }
+      if ("SELETAR" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_SELETAR))
+      }
+      if ("BEDOK" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_BEDOK))
+      }
+      if ("TAMPINES" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_TAMPINES))
+      }
+      if ("PASIR RIS" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_PASIR_RIS))
+      }
+      if ("MARINE PARADE" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_MARINE_PARADE))
+      }
+      if ("CHANGI" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_CHANGI))
+      }
+      if ("CHANGI BAY" %in% input$bus_planning_area) {
+        filtered_data <- append(filtered_data, list(df_CHANGI_BAY))
+      }
+      
+      bus_data_filtered <- bind_rows(filtered_data)
+      
+      # Check if the filtered data contains the necessary columns before adding markers
+      if ("Latitude" %in% colnames(bus_data_filtered) && "Longitude" %in% colnames(bus_data_filtered)) {
+        # Add bus stop markers to the map
+        map <- map %>%
+          addMarkers(
+            data = bus_data_filtered,
+            lat = ~Latitude,
+            lng = ~Longitude,
+            popup = ~paste("<strong>", Description, "</strong>", "<br>Bus Stop ID:", BusStopCode)  # Adjust column names accordingly
+          )
+      }
+    }
+    
+    # Return the map object
+    map
+  })
+  
   
   # ==== TAB 2: Isochrone Map ====
   output$t2_isochrone_map <- renderLeaflet({
@@ -425,5 +703,27 @@ shinyServer(function(input, output, session) {
     }
     return(NULL)
   })
+
+  # --- Optionally Source Custom Logic from testServer.R ---
+  
+  override_file <- "tab4Override.R"
+  predict_file <- "predict_accessibility.R"
+  
+  if (file.exists(predict_file)) {
+    message(" Loading base scoring logic from predict_accessibility.R...")
+    source(predict_file, new.env())
+  } else {
+    stop(" Missing required file: predict_accessibility.R")
+  }
+  
+  if (file.exists(override_file)) {
+    message(" Sourcing custom override logic from tab4Override.R...")
+    source(override_file, new.env())
+  } else {
+    stop(" Missing override logic file: tab4Override.R")
+  }
+  
+
+})
   
 })

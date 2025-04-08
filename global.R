@@ -1,8 +1,8 @@
 library(dplyr)
-library(geosphere)
-library(httr)
-library(jsonlite)
 library(sf)
+library(readr)
+library(tidyr)
+library(lubridate)
 
 # ---- Load Required Data ----
 data_dir <- "data/RDS Files"
@@ -99,10 +99,94 @@ bus_stop_density <- bus_with_planning %>%
   st_drop_geometry() %>%
   count(pln_area_n)
 
+# Bus Stop data
+df_ROCHOR <- subset(bus_with_planning, pln_area_n == "ROCHOR")
+df_DOWNTOWN_CORE <- subset(bus_with_planning, pln_area_n == "DOWNTOWN CORE")
+df_KALLANG <- subset(bus_with_planning, pln_area_n == "KALLANG")
+df_OUTRAM <- subset(bus_with_planning, pln_area_n == "OUTRAM")
+df_MARINA_SOUTH <- subset(bus_with_planning, pln_area_n == "MARINA SOUTH")
+df_STRAITS_VIEW <- subset(bus_with_planning, pln_area_n == "STRAITS VIEW")
+df_MUSEUM <- subset(bus_with_planning, pln_area_n == "MUSEUM")
+df_SINGAPORE_RIVER <- subset(bus_with_planning, pln_area_n == "SINGAPORE RIVER")
+df_BUKIT_MERAH <- subset(bus_with_planning, pln_area_n == "BUKIT MERAH")
+df_ORCHARD <- subset(bus_with_planning, pln_area_n == "ORCHARD")
+df_RIVER_VALLEY <- subset(bus_with_planning, pln_area_n == "RIVER VALLEY")
+df_TANGLIN <- subset(bus_with_planning, pln_area_n == "TANGLIN")
+df_QUEENSTOWN <- subset(bus_with_planning, pln_area_n == "QUEENSTOWN")
+df_BUKIT_TIMAH <- subset(bus_with_planning, pln_area_n == "BUKIT TIMAH")
+df_CLEMENTI <- subset(bus_with_planning, pln_area_n == "CLEMENTI")
+df_SOUTHERN_ISLANDS <- subset(bus_with_planning, pln_area_n == "SOUTHERN ISLANDS")
+df_JURONG_EAST <- subset(bus_with_planning, pln_area_n == "JURONG EAST")
+df_JURONG_WEST <- subset(bus_with_planning, pln_area_n == "JURONG WEST")
+df_BOON_LAY <- subset(bus_with_planning, pln_area_n == "BOON LAY")
+df_PIONEER <- subset(bus_with_planning, pln_area_n == "PIONEER")
+df_WESTERN_WATER_CATCHMENT <- subset(bus_with_planning, pln_area_n == "WESTERN WATER CATCHMENT")
+df_TUAS <- subset(bus_with_planning, pln_area_n == "TUAS")
+df_CHOACHUKANG <- subset(bus_with_planning, pln_area_n == "CHOA CHU KANG")
+df_TENGAH <- subset(bus_with_planning, pln_area_n == "TENGAH")
+df_LIMCHUKANG <- subset(bus_with_planning, pln_area_n == "LIM CHU KANG")
+df_NEWTON <- subset(bus_with_planning, pln_area_n == "NEWTON")
+df_NOVENA <- subset(bus_with_planning, pln_area_n == "NOVENA")
+df_CENTRAL_WATER_CATCHMENT <- subset(bus_with_planning, pln_area_n == "CENTRAL WATER CATCHMENT")
+df_BUKIT_BATOK <- subset(bus_with_planning, pln_area_n == "BUKIT BATOK")
+df_BUKIT_PANJANG <- subset(bus_with_planning, pln_area_n == "BUKIT PANJANG")
+df_SUNGEI_KADUT <- subset(bus_with_planning, pln_area_n == "SUNGEI KADUT")
+df_WOODLANDS <- subset(bus_with_planning, pln_area_n == "WOODLANDS")
+df_SEMBWANG <- subset(bus_with_planning, pln_area_n == "SEMBAWANG")
+df_MANDAI <- subset(bus_with_planning, pln_area_n == "MANDAI")
+df_YISHUN <- subset(bus_with_planning, pln_area_n == "YISHUN")
+df_TOA_PAYOH <- subset(bus_with_planning, pln_area_n == "TOA PAYOH")
+df_BISHAN <- subset(bus_with_planning, pln_area_n == "BISHAN")
+df_ANG_MO_KIO <- subset(bus_with_planning, pln_area_n == "ANG MO KIO")
+df_SERANGOON <- subset(bus_with_planning, pln_area_n == "SERANGOON")
+df_SENGKANG <- subset(bus_with_planning, pln_area_n == "SENGKANG")
+df_GEYLANG <- subset(bus_with_planning, pln_area_n == "GEYLANG")
+df_HOUGANG <- subset(bus_with_planning, pln_area_n == "HOUGANG")
+df_PAYA_LEBAR <- subset(bus_with_planning, pln_area_n == "PAYA LEBAR")
+df_PUNGGOL <- subset(bus_with_planning, pln_area_n == "PUNGGOL")
+df_SELETAR <- subset(bus_with_planning, pln_area_n == "SELETAR")
+df_BEDOK <- subset(bus_with_planning, pln_area_n == "BEDOK")
+df_TAMPINES <- subset(bus_with_planning, pln_area_n == "TAMPINES")
+df_PASIR_RIS <- subset(bus_with_planning, pln_area_n == "PASIR RIS")
+df_MARINE_PARADE <- subset(bus_with_planning, pln_area_n == "MARINE PARADE")
+df_CHANGI <- subset(bus_with_planning, pln_area_n == "CHANGI")
+df_CHANGI_BAY <- subset(bus_with_planning, pln_area_n == "CHANGI BAY")
+
 # MRT station density by planning area
+mrt_with_planning <- mrt_with_planning %>%
+  distinct(mrt_station, .keep_all = TRUE)
 mrt_station_density <- mrt_with_planning %>% 
   st_drop_geometry() %>%
   count(pln_area_n)
+
+
+mrt_station_data <- read_csv("data/MRTStations.csv")
+mrt_station_data <- mrt_station_data %>% separate_rows(STN_NO, sep = "/")
+mrt_station_data_upd <- mrt_station_data %>%
+  mutate(colour = case_when(
+    grepl("^NS", STN_NO) ~ "#D62010", 
+    grepl("^EW", STN_NO) ~ "#008040",  
+    grepl("^CC", STN_NO) ~ "#FFA500",
+    grepl("^NE", STN_NO) ~ "#8B00FF",
+    grepl("^DT", STN_NO) ~ "#004494", 
+    grepl("^TE", STN_NO) ~ "#966F33", 
+    grepl("^P", STN_NO) ~ "#748477",
+    grepl("^S", STN_NO) ~ "#748477", 
+    grepl("^B", STN_NO) ~ "#748477", 
+    TRUE ~ "#000000" 
+  ))
+
+# Filtered MRT lines based on the STN_NO
+ew_line <- mrt_station_data_upd %>% filter(grepl("^EW", STN_NO))
+ns_line <- mrt_station_data_upd %>% filter(grepl("^NS", STN_NO))
+cc_line <- mrt_station_data_upd %>% filter(grepl("^CC", STN_NO))
+ne_line <- mrt_station_data_upd %>% filter(grepl("^NE", STN_NO))
+dt_line <- mrt_station_data_upd %>% filter(grepl("^DT", STN_NO))
+te_line <- mrt_station_data_upd %>% filter(grepl("^TE", STN_NO))
+Punggol_LRT_line <- mrt_station_data_upd %>% filter(grepl("^P", STN_NO))
+Sengkang_LRT_line <- mrt_station_data_upd %>% filter(grepl("^S", STN_NO))
+BukitPanjang_LRT_line <- mrt_station_data_upd %>% filter(grepl("^B", STN_NO))
+
 
 # Fill in planning areas that are missing MRT stations with zero counts
 missing_pln_areas <- setdiff(planning_areas$pln_area_n, mrt_station_density$pln_area_n)
@@ -121,3 +205,9 @@ generate_fast_isochrone <- function(center_lng, center_lat, duration_mins) {
   circle_coords <- geosphere::destPoint(center, b = seq(0, 360, length.out = 100), d = radius_m)
   return(as.data.frame(circle_coords))
 }
+
+##home tab
+#upcoming bto
+upcoming_btos <- readRDS("data/RDS Files/upcoming_bto.rds")
+upcoming_btos$launchStartDate <- as.POSIXct(upcoming_btos$launchStartDate, format="%Y-%m-%d %H:%M:%S")
+upcoming_btos$launchStartDate <- format(upcoming_btos$launchStartDate, "%d %B %Y")

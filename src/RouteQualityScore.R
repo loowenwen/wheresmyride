@@ -822,7 +822,9 @@ results <- route_analyzer$calculate_multiple_rqs(
   starts = combined_coords,
   end = "118420",
   date = "03-24-2025",
-  time_period = "Morning Peak (6:30-8:30am)"  # Using time period instead of specific time
+  time_period = "Morning Peak (6:30-8:30am)",
+  weights = c(transport = 0.25, comfort = 0.25, 
+              robustness = 0.25, service = 0.25)# Using time period instead of specific time
 )
 print(results$summary)  # Summary table of all routes
 

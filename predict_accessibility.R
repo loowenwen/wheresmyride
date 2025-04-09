@@ -4,8 +4,6 @@
 
 print("✅ Loaded latest predict_accessibility() from predict_accessibility.R")
 
-rm(list = ls())
-
 library(tidyverse)
 library(lubridate)
 library(readxl)
@@ -17,168 +15,21 @@ library(sf)
 library(purrr)
 library(units)
 
-
-# AUTHENTICATION
-
-
-# define API endpoint for authentication
-auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
-
-# define email and password 
-email <- "loowenwen1314@gmail.com"
-password <- "sochex-6jobge-fomsYb"
-
-# create JSON payload
-auth_body <- list(
-  email = email,
-  password = password
-)
-
-# make API request
-response <- POST(
-  url = auth_url,
-  body = auth_body,
-  encode = "json"
-)
-
-# check response status
-if (status_code(response) == 200) {
-  # parse JSON response
-  result <- content(response, as = "text", encoding = "UTF-8")
-  data <- fromJSON(result)
-  
-  # extract token and store it as an environment variable
-  token <- data$access_token
-  Sys.setenv(ONEMAP_TOKEN = token)
-  
-} else {
-  print(paste("Error:", status_code(response)))
-}
+options(lubridate.verbose = FALSE)  # <- suppress timezone conversion warnings 
 
 
 ### MRT Crowd Density by Station
-
-
-parse_crowd_json <- function(filepath) {
-  # Read and preprocess JSON content 
-  json_content <- paste0(readLines(filepath, warn = FALSE, encoding = "UTF-8"), collapse = "")
-  json_content <- trimws(json_content)
-  json_content <- sub(",\\s*$", "", json_content)  # Remove trailing comma
-  
-  # Validate JSON
-  if (!jsonlite::validate(json_content)) {
-    stop("Invalid JSON in file: ", filepath)
-  }
-  
-  # Parse JSON with error handling
-  raw <- tryCatch({
-    jsonlite::fromJSON(json_content)
-  }, error = function(e) {
-    message("Error parsing JSON from: ", filepath)
-    message("Error details: ", e$message)
-    message("First 200 chars: ", substr(json_content, 1, 200))
-    stop("Failed to parse JSON")
-  })
-  
-  stations_df <- raw$value$Stations[[1]]  # <-- the [1] is KEY
-  
-  all_intervals <- purrr::map2_dfr(
-    stations_df$Station,
-    stations_df$Interval,
-    function(station_code, interval_df) {
-      interval_df %>%
-        mutate(
-          Station = station_code,
-          datetime = ymd_hms(Start, tz = "Asia/Singapore"),
-          hour = hour(datetime),
-          crowd_score = case_when(
-            CrowdLevel == "l" ~ 1,
-            CrowdLevel == "m" ~ 2,
-            CrowdLevel == "h" ~ 3,
-            TRUE ~ NA_real_
-          ),
-          time_slot = case_when(
-            hour >= 6 & hour < 9 ~ "AM_peak",
-            hour == 5 | (hour >= 9 & hour < 17) ~ "AM_offpeak",
-            hour >= 17 & hour < 19 ~ "PM_peak",
-            (hour >= 19 & hour <= 23) | (hour >= 0 & hour < 2) ~ "PM_offpeak",
-            TRUE ~ "Other" # as the dataset is a 24hr forecast, it includes all timings. They will just be categorised as other since the MRT does not run from 1am - 4.59am. MRT generally starts at ~5.30am so timing from 5am onwards will be taken
-          )
-        )
-    }
-  )
-  
-  return(all_intervals)
-}
-# Now use the modified function to parse your MRT crowd data
-
-mrt_crowdDensity <- bind_rows(
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_CCL.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_DTL.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_EWL.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_CEL.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_CGL.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_NEL.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_NSL.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_BPL.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_SLRT.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_PLRT.json"),
-  parse_crowd_json("data/MRT_CrowdDensity/CrowdDensity_TEL.json")
-)
-
-# Check the results
-head(mrt_crowdDensity)
-
+## Moved to global.R
 
 
 ### Importing Bus and MRT location information from "planningareapolygons.R"
-
-readRDS("data/RDS Files/planning_area_polygons.rds")
-bus_stops <- readRDS("data/RDS Files/bus_with_planning.rds")
-mrt_lrt <- readRDS("data/RDS Files/mrt_stations.rds")
-
-mrt_lrt <- mrt_lrt %>%
-  st_as_sf() %>%
-  st_transform(crs = 4326)
-
-bus_stops <- bus_stops %>%
-  st_as_sf() %>%
-  st_transform(crs = 4326)
-
+## Moved to global.R
 
 
 ### Extracting Bus Services Function
+## Moved to global.R
 
-
-get_bus_routes <- function() {
-  url <- "http://datamall2.mytransport.sg/ltaodataservice/BusRoutes"
-  api_key <- "o6OuJxI3Re+qYgFQzb+4+w=="  # Replace with your own API key
-  
-  offset <- 0
-  all_data <- list()
-  
-  repeat {
-    response <- GET(url, add_headers(AccountKey = api_key), query = list("$skip" = offset))
-    data <- content(response, "text", encoding = "UTF-8")
-    parsed_data <- fromJSON(data)
-    
-    if (length(parsed_data$value) == 0) break
-    all_data <- append(all_data, list(parsed_data$value))
-    offset <- offset + 500
-  }
-  
-  bind_rows(all_data)
-}
-
-# Fetch all bus routes from API
-bus_routes_raw <- get_bus_routes()
-
-# Create lookup table: BusStopCode -> ServiceNo
-bus_services_lookup <- bus_routes_raw %>%
-  select(ServiceNo, BusStopCode) %>%
-  distinct() %>%
-  mutate(BusStopCode = str_pad(as.character(BusStopCode), 5, side = "left", pad = "0"))
-
+options(lubridate.verbose = FALSE)
 
 
 ### Engineering of all Features

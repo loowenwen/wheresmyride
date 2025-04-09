@@ -27,30 +27,30 @@ shinyUI(
                  )
                ),
                br(),
-              
+               
                fluidRow(
                  column(3, actionLink("go_heatmap", label = tagList(
                    icon("map", lib = "font-awesome", style = "font-size: 28px"),
-                   h5("Transport Heatmap", style = "font-weight: bold"),
+                   h5("Public Transport Density Map", style = "font-weight: bold"),
                    p("Analyze transport coverage by exploring the density and distribution of bus stops and MRT stations across different regions.")
                  ), style = "text-decoration: none")),
                  
                  column(3, actionLink("go_commute", label = tagList(
                    icon("location-dot", lib = "font-awesome", style = "font-size: 28px"),
-                   h5("Travel Reach & Nearby Transport", style = "font-weight: bold"),
+                   h5("Travel Reach", style = "font-weight: bold"),
                    p("Discover how far you can travel within 5–60 minutes by public transport from the selected BTO project or a specified location using postal code.")
                  ), style = "text-decoration: none")),
                  
                  column(3, actionLink("go_compare", label = tagList(
                    icon("balance-scale", lib = "font-awesome", style = "font-size: 28px"),
                    h5("BTO Transport Comparison", style = "font-weight: bold"),
-                   p("Compare public transport quality across BTO projects based on commute comfort, speed, and overall connectivity to your destination.")
+                   p("Compare the quality of public transport routes across BTO projects, based on key factors like commute comfort, speed, reliability, and service frequency - all tailored to your preferred destination, whether it’s your workplace or another key location.")
                  ), style = "text-decoration: none")),
                  
                  column(3, actionLink("go_insights", label = tagList(
                    icon("chart-line", lib = "font-awesome", style = "font-size: 28px"),
                    h5("Transport Access Dashboard", style = "font-weight: bold"),
-                   p("Get personalized insights into public transport accessibility for each BTO project or by postal code. View model-based scores, congestion trends, and identify service gaps near your location.")
+                   p("Explore detailed, location-specific insights into public transport accessibility based on Bus, MRT, Walkability, and Congestion - tailored to each BTO project or postal code.")
                  ), style = "text-decoration: none"))
                ),
                br(),
@@ -75,9 +75,9 @@ shinyUI(
     # --- Explore ---
     navbarMenu("Explore",
                
-               # --- Transport Heatmap ---
+               # --- Public Transport Density Map ---
                tabPanel(
-                 "Transport Heatmap", value = "heatmap",
+                 "Public Transport Density Map", value = "heatmap",
                  sidebarLayout(
                    sidebarPanel(
                      h4(tagList(icon("map-location-dot", lib = "font-awesome"), " Heatmap Input"), style = "font-weight: bold"),

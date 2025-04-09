@@ -171,8 +171,6 @@ shinyUI(
                        tagList(icon("map", lib = "font-awesome"), " Isochrone Visualisation"),
                        class = "fw-bold"
                      ),
-                     uiOutput("t4_score_display"),
-                     uiOutput("t4_score_interpretation"),
                      tags$p(
                        class = "text-muted",
                        "This map shows how far you can travel from your selected location within different time intervals by public transport. The shaded zones represent estimated reachable areas within 5, 10, 15, 30, 45 and 60 minutes of travel time.

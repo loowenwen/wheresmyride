@@ -196,6 +196,9 @@ shinyUI(
                  
                  textInput("t3_destination_postal", "Enter Destination Postal Code:", placeholder = "e.g 123456"),
                  
+                 hr(),
+                 h4(tagList(icon("gears", lib = "font-awesome"), " Customize Route Quality Score Model"), style = "font-weight: bold"),
+                 
                  tags$div(
                    class = "form-group",
                    tags$label(
@@ -208,17 +211,36 @@ shinyUI(
                        `data-bs-toggle` = "tooltip",
                        `data-bs-placement` = "right"
                      )
+                   ),
+                   radioButtons("t3_travel_time_preference", label = NULL,
+                                choices = c(
+                                  "AM Peak (6:30–8:30am)" = "AM_peak",
+                                  "AM Off-Peak (8:31am–4:59pm)" = "AM_offpeak",
+                                  "PM Peak (5–7pm)" = "PM_peak",
+                                  "PM Off-Peak (7pm–)" = "PM_offpeak"
+                                ),
+                                selected = "AM_peak")
+                 ),
+                 
+                 tags$h5(
+                   class = "fw-bold",
+                   tagList(
+                     "Route Quality Score Weights",
+                     HTML('&nbsp;'),  # spacing
+                     tags$i(
+                       class = "fas fa-circle-question text-muted",
+                       style = "cursor: pointer;",
+                       title = "By default, each component (Ride Comfort, Trip Speed, Transport Frequency, Route Reliabilty) contributes 25% to the overall score. You can adjust these weights based on what matters most to you.",
+                       `data-bs-toggle` = "tooltip",
+                       `data-bs-placement` = "right"
+                     )
                    )
                  ),
-                 radioButtons("t3_travel_time_preference", label = NULL,
-                              choices = c(
-                                "AM Peak (6:30–8:30am)" = "AM_peak",
-                                "AM Off-Peak (8:31am–4:59pm)" = "AM_offpeak",
-                                "PM Peak (5–7pm)" = "PM_peak",
-                                "PM Off-Peak (7pm–)" = "PM_offpeak"
-                              ),
-                              selected = "AM_peak"
-                 ),
+                 helpText("You can adjust how much each factor matters to you. The app will automatically normalize the weights."),
+                 sliderInput("t3_comfort", "Ride Comfort Importance", min = 0, max = 100, value = 25),
+                 sliderInput("t3_speed", "Trip Speed Importance", min = 0, max = 100, value = 25),
+                 sliderInput("t3_frequency", "Transport Frequency Importance", min = 0, max = 100, value = 25),
+                 sliderInput("t3_reliability", "Route Reliability Importance", min = 0, max = 100, value = 25),
                  
                  actionButton("t3_get_comparison", "Get BTO Transport Route Comparison", icon = icon("search"))
                ),
@@ -254,12 +276,21 @@ shinyUI(
                  ),
                  
                  fluidRow(
-                   column(6, h4("Radar Chart: BTO A", style = "font-weight: bold"), plotlyOutput("t3_radar_a")),
-                   column(6, h4("Radar Chart: BTO B", style = "font-weight: bold"), plotlyOutput("t3_radar_b"))
+                   column(6, h4("Radar Chart: BTO A", style = "font-weight: bold"), 
+                          uiOutput("t3_radar_a_score"),
+                          plotlyOutput("t3_radar_a")
+                          ),
+                   column(6, h4("Radar Chart: BTO B", style = "font-weight: bold"), 
+                          uiOutput("t3_radar_b_score"),
+                          plotlyOutput("t3_radar_b"))
                  ),
                  fluidRow(
-                   column(6, h4("Radar Chart: BTO C", style = "font-weight: bold"), plotlyOutput("t3_radar_c")),
-                   column(6, h4("Radar Chart: BTO D", style = "font-weight: bold"), plotlyOutput("t3_radar_d"))
+                   column(6, h4("Radar Chart: BTO C", style = "font-weight: bold"), 
+                          uiOutput("t3_radar_c_score"),
+                          plotlyOutput("t3_radar_c")),
+                   column(6, h4("Radar Chart: BTO D", style = "font-weight: bold"), 
+                          uiOutput("t3_radar_d_score"),
+                          plotlyOutput("t3_radar_d"))
                  )
                )
              )

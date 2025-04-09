@@ -492,6 +492,31 @@ shinyServer(function(input, output, session) {
       )
   }
   
+  # --- Render Radar Chart Individual Score
+  output$t3_radar_a_score <- renderUI({
+    # dummy score value, replace this with your actual logic later
+    dummy_score <- round(runif(1, 60, 95), 1)  # Random score between 60 and 95
+    h2(dummy_score, style = "font-weight: bold")
+  })
+  
+  output$t3_radar_b_score <- renderUI({
+    # dummy score value, replace this with your actual logic later
+    dummy_score <- round(runif(1, 60, 95), 1)  # Random score between 60 and 95
+    h2(dummy_score, style = "font-weight: bold")
+  })
+  
+  output$t3_radar_c_score <- renderUI({
+    # dummy score value, replace this with your actual logic later
+    dummy_score <- round(runif(1, 60, 95), 1)  # Random score between 60 and 95
+    h2(dummy_score, style = "font-weight: bold")
+  })
+  
+  output$t3_radar_d_score <- renderUI({
+    # dummy score value, replace this with your actual logic later
+    dummy_score <- round(runif(1, 60, 95), 1)  # Random score between 60 and 95
+    h2(dummy_score, style = "font-weight: bold")
+  })
+  
   # render_radar_chart_by_coords <- function(coord_string) {
   #   bto_scores <- rqs_summary %>%
   #     filter(Start == coord_string)

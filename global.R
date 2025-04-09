@@ -5,6 +5,7 @@ library(tidyr)
 library(lubridate)
 library(httr)
 library(jsonlite)
+library(stringr)
 
 # ---- Load Required Data ----
 data_dir <- "data/RDS Files"

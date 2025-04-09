@@ -267,10 +267,7 @@ shinyServer(function(input, output, session) {
   # ==== TAB 2: Isochrone Map ====
   output$t2_isochrone_map <- renderLeaflet({
     leaflet() %>%
-      addTiles(
-        urlTemplate = "https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png",
-        attribution = '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" style="height:20px;width:20px;"/>&nbsp;<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener noreferrer">OneMap</a>&nbsp;&copy;&nbsp;contributors&nbsp;&#124;&nbsp;<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener noreferrer">Singapore Land Authority</a>'
-      ) %>%
+      addTiles() %>%
       setView(lng = 103.8198, lat = 1.3521, zoom = 12)
   })
   
@@ -289,7 +286,7 @@ shinyServer(function(input, output, session) {
   })
   
   # Determine source of coordinates (postal code or selected BTO)
-  get_selected_coords <- reactive({
+  t2_get_selected_coords <- reactive({
     if (!is.null(input$t2_postal_code) && input$t2_postal_code != "") {
       coords <- tryCatch({
         get_coords_from_postal(input$t2_postal_code)
@@ -312,7 +309,7 @@ shinyServer(function(input, output, session) {
     print(paste("Postal:", input$t2_postal_code))
     print(paste("BTO:", input$t2_bto_project))
     
-    coords <- get_selected_coords()
+    coords <- t2_get_selected_coords()
     print("Result from get_selected_coords:")
     print(coords)
     req(coords)
@@ -326,10 +323,7 @@ shinyServer(function(input, output, session) {
     
     output$t2_isochrone_map <- renderLeaflet({
       leaflet() %>%
-        addTiles(
-          urlTemplate = "https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png",
-          attribution = '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" style="height:20px;width:20px;"/>&nbsp;<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener noreferrer">OneMap</a>&nbsp;&copy;&nbsp;contributors&nbsp;&#124;&nbsp;<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener noreferrer">Singapore Land Authority</a>'
-        ) %>%
+        addTiles() %>%
         setView(lng = lng, lat = lat, zoom = 13) %>%
         addMarkers(lng = lng, lat = lat, popup = paste("Postal Code:", input$t2_postal_code)) %>%
         addPolygons(

@@ -12,13 +12,13 @@ shinyUI(
   navbarPage(
     theme = shinytheme("yeti"),
     title = div(
-      img(src = "white_logo.png", style = "height: 30px"),
+      img(src = "white_logo.png", style = "height: 30px")
     ),
     id = "mainTabs",
     windowTitle = "Where's My Ride",
     
     # --- Home ---
-    tabPanel("Home",
+    tabPanel("Home", value = "home",
              fluidPage(
                fluidRow(
                  column(12,
@@ -414,7 +414,7 @@ shinyUI(
     ),
 
     # --- Project Information ---
-    tabPanel("Project Information",
+    tabPanel("Project Information", value = "project_info",
              fluidPage(
                
                # --- Team Members ---

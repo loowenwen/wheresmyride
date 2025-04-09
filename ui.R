@@ -59,7 +59,7 @@ shinyUI(
                  column(12,
                         h3("Explore Upcoming BTO Projects and Transport Connectivity"),
                         p("Discover new BTO launches and examine their accessibility to nearby MRT stations and bus stops. Use the interactive map below to zoom into each estate and visualize surrounding transport nodes."),
-                        leafletOutput("bto_map", height = "400px"),
+                        leafletOutput("bto_map", height = "400px")
                  )
                ),
                br(),
@@ -194,7 +194,7 @@ shinyUI(
                  selectInput("t3_bto_c", "Select BTO C:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
                  selectInput("t3_bto_d", "Select BTO D:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
                  
-                 textInput("t3_destionation_postal", "Enter Destination Postal Code:", placeholder = "e.g., 123456"),
+                 textInput("t3_destination_postal", "Enter Destination Postal Code:", placeholder = "e.g., 123456"),
                  
                  tags$div(
                    class = "form-group",
@@ -338,7 +338,7 @@ shinyUI(
                  sliderInput("t4_walk", "Walkability Importance", min = 0, max = 100, value = 25),
                  sliderInput("t4_congestion", "Congestion Importance", min = 0, max = 100, value = 25),
                  
-                 actionButton("t4_recalculate", "Recalculate with New Settings", icon = icon("sync")),
+                 actionButton("t4_recalculate", "Recalculate with New Settings", icon = icon("sync"))
                ),
                
                mainPanel(

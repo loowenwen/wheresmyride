@@ -44,7 +44,7 @@ library(sf)
 library(dplyr)
 
 # 1. Read the GeoJSON file
-hdb_data <- st_read("data/HDBExistingBuilding.geojson")
+hdb_data <- st_read("../data/HDBExistingBuilding.geojson")
 
 # 2. Repair any invalid geometries
 hdb_data <- st_make_valid(hdb_data)

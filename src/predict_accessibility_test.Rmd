@@ -589,3 +589,4 @@ predict_accessibility <- function(location_input,
 # Convert the Rmd into an R script so that its functions become accessible.
 # (This step uses knitr::purl; you only need to run it once.)
 knitr::purl("predict_accessibility_test.Rmd", output = "accessibility_functions.R")
+```

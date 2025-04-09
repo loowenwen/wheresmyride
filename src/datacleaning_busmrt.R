@@ -75,7 +75,7 @@ mrt_stations_df %>%
   filter(n > 1)
 
 mrt_stations_merged <- mrt_stations_df %>%
-  group_by(station_name) %>%
+  group_by(station_name, station_type) %>%
   summarise(
     geometry = st_union(geometry),
     shape_area = sum(shape_area),
@@ -84,7 +84,7 @@ mrt_stations_merged <- mrt_stations_df %>%
   )
 
 mrt_stations_merged %>%
-  group_by(station_name) %>%
+  group_by(station_name, station_type) %>%
   summarise(n = n()) %>%
   filter(n > 1)
 
@@ -106,6 +106,15 @@ mrt_stations_final <- train_station_codes %>%
   left_join(mrt_stations_merged, by = c("mrt_station_english" = "station_name")) %>%
   rename(mrt_station = mrt_station_english, 
          mrt_line = mrt_line_english)
+
+duplicated_codes <- mrt_stations_final$stn_code[duplicated(mrt_stations_final$stn_code)]
+unique(duplicated_codes)
+
+# remove duplicated rows
+mrt_stations_final <- mrt_stations_final[-c(4, 78, 80, 113, 150, 156, 165, 180),]
+
+duplicated_codes <- mrt_stations_final$stn_code[duplicated(mrt_stations_final$stn_code)]
+unique(duplicated_codes)
 
 mrt_stations_final %>%
   group_by(mrt_station) %>%
@@ -150,6 +159,13 @@ mrt_with_planning %>%
 mrt_final <- mrt_with_planning %>%
   st_drop_geometry() %>%
   left_join(mrt_stations)
+
+mrt_final <- mrt_final %>%
+  mutate(station_type = case_when(
+    station_type == "MRT STATION" ~ "MRT Station",
+    station_type == "LRT STATION" ~ "LRT Station",
+    TRUE ~ station_type
+  ))
 
 # save as RDS
 saveRDS(mrt_final, file = "data/RDS Files/mrt_with_planning.rds")

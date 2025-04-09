@@ -15,53 +15,62 @@ shinyServer(function(input, output, session) {
   # ==== Home Tab ====
   # --- Render BTO Map --- 
   output$bto_map <- renderLeaflet({
+    
+    # --- Custom Icons ---
+    house_icon <- awesomeIcons(
+      icon = "house", iconColor = "white", markerColor = "orange", library = "fa"
+    )
+    
+    mrt_icon <- awesomeIcons(
+      icon = "train", iconColor = "white", markerColor = "red", library = "fa"
+    )
+    
+    bus_icon <- awesomeIcons(
+      icon = "bus", iconColor = "white", markerColor = "blue", library = "fa"
+    )
+    
     leaflet() %>%
       addProviderTiles(providers$CartoDB.Positron) %>%
       
-      # --- BTO Markers ---
-      addMarkers(
+      # --- BTO Markers with Clustering ---
+      addAwesomeMarkers(
         data = upcoming_bto,
         ~lng, ~lat,
+        icon = house_icon,
         popup = ~paste0(
           "<h5>", town, "</h5>",
           "<p><strong>Available Flat Types:</strong><br>", flatType, "</p>",
           "<p><strong>BTO Exercise:</strong> ",
-          format(as.Date(paste0(ballotQtr, "-01")), "%B %Y"), "</p></div>"
+          format(as.Date(paste0(ballotQtr, "-01")), "%B %Y"), "</p>"
         ),
         group = "BTO Projects"
       ) %>%
       
       # --- MRT Stations ---
-      addCircleMarkers(
+      addAwesomeMarkers(
         data = mrt_with_planning,
         ~centroid_lon, ~centroid_lat,
-        radius = 5,
-        color = "#c1121f",
-        fillOpacity = 0.9,
-        stroke = FALSE,
-        label = ~paste0("Station Name: ", mrt_station),
-        popup = ~paste0("<h5>", mrt_station, "</h5>",
-                        "<p><strong>MRT Line:</strong><br>", mrt_line_combined, "</p>",
+        icon = mrt_icon,
+        popup = ~paste0("<h5>", str_to_title(mrt_station), " ", station_type, "</h5>",
+                        "<p><strong>MRT Line:</strong><br>", str_to_title(mrt_line_combined), "</p>",
                         "<p><strong>Station Code:</strong><br>", stn_code_combined, "</p>"),
         group = "MRT Stations"
       ) %>%
       
-      # --- Bus Interchanges ---
-      addCircleMarkers(
+      # --- Bus Stops with Clustering ---
+      addAwesomeMarkers(
         data = bus_with_planning,
         ~Longitude, ~Latitude,
-        radius = 4,
-        color = "#669bbc",
-        fillOpacity = 0.9,
-        stroke = FALSE,
-        label = ~paste0("Bus Stop Code: ", BusStopCode),
+        icon = bus_icon,
         popup = ~paste0("<h5>", BusStopCode, "</h5>",
                         "<p><strong>Description:</strong><br>", Description, "</p>",
                         "<p><strong>Road Name:</strong><br>", RoadName, "</p>"),
+        clusterOptions = markerClusterOptions(),
         group = "Bus Stops"
       ) %>%
       
       # --- Layers Control ---
+      hideGroup(c("MRT Stations", "Bus Stops")) %>%
       addLayersControl(
         overlayGroups = c("BTO Projects", "MRT Stations", "Bus Stops"),
         options = layersControlOptions(collapsed = FALSE)
@@ -84,7 +93,7 @@ shinyServer(function(input, output, session) {
     updateTabsetPanel(session, "mainTabs", selected = "insights")
   })
   observeEvent(input$go_to_map, {
-    updateTabsetPanel(session, "mainTabs", selected = "insights")
+    updateTabsetPanel(session, "mainTabs", selected = "compare")
   })
   
   

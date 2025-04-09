@@ -124,7 +124,7 @@ generate_fast_isochrone <- function(center_lng, center_lat, duration_mins) {
 parse_crowd_json <- function(filepath) {
   json_content <- paste0(readLines(filepath, warn = FALSE, encoding = "UTF-8"), collapse = "") %>%
     trimws() %>%
-    sub(",\s*$", "", .)
+    sub(",\\s*$", "", .)
   
   if (!jsonlite::validate(json_content)) stop("Invalid JSON in file: ", filepath)
   

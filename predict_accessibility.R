@@ -209,17 +209,59 @@ normalised_score <- function(features,
   norm_congestion <- weight_congestion / sum_weights
   
   # ---- Normalise/scale scores ----
+  
+  ### Calculated based on analysis of 1000 HDB areas. Q1-3 corresponds to 0.25, 0.50, 0.750 of the score respectively.
+  
+  # MRT Score Helper Function
+  calc_mrt_stations_score <- function(num_stations) {
+    case_when(
+      num_stations >= 2 ~ 1,  
+      num_stations == 1 ~ 0.50,  
+      TRUE ~ 0                  
+    )
+  }
+  
+  calc_mrt_lines_score <- function(num_lines) {
+    case_when(
+      num_lines >= 2 ~ 1,       
+      num_lines == 1 ~ 0.50,    
+      TRUE ~ 0                 
+    )
+  }
+  
   # MRT score (distance excluded)
   score_mrt <- min(1, mean(c(
-    ifelse(is.na(features$num_mrt_stations), 0, min(features$num_mrt_stations / 3, 1)),
-    ifelse(is.na(features$num_unique_mrt_lines), 0, min(features$num_unique_mrt_lines / 3, 1))
-    ))) * 100
+    calc_mrt_stations_score(features$num_mrt_stations),
+    calc_mrt_lines_score(features$num_unique_mrt_lines)
+  ))) * 100
+  
+
+  # Bus Score Helper Function
+  calc_bus_stops_score <- function(num_stops) {
+    case_when(
+      num_stops >= 29 ~ 1,          # max count
+      num_stops > 18 ~ 0.75,       # above Q3 threshold
+      num_stops > 14 ~ 0.50,       # between Q2 and Q3
+      num_stops > 11 ~ 0.25,       # between Q1 and Q2
+      TRUE ~ 0                   # at or below Q1
+    )
+  }
+  
+  calc_bus_services_score <- function(num_services) {
+    case_when(
+      num_services >= 49 ~ 1,       # max count
+      num_services > 23 ~ 0.75,    # above Q3 threshold
+      num_services > 17 ~ 0.50,    # between Q2 and Q3
+      num_services > 13 ~ 0.25,    # between Q1 and Q2
+      TRUE ~ 0                   # at or below Q1
+    )
+  }
   
   # Bus score (distance excluded)
   score_bus <- min(1, mean(c(
-    ifelse(is.na(features$num_bus_stops), 0, min(features$num_bus_stops / 20, 1)),
-    ifelse(is.na(features$num_unique_bus_services), 0, min(features$num_unique_bus_services / 30, 1))
-    ))) * 100
+    calc_bus_stops_score(features$num_bus_stops),
+    calc_bus_services_score(features$num_unique_bus_services)
+  ))) * 100
   
   # Walkability (distance included)
   norm_mrt_dist <- max(0, 1 - (ifelse(is.na(features$avg_dist_mrt), features$distance_radius, features$avg_dist_mrt) / features$distance_radius))
@@ -228,19 +270,49 @@ normalised_score <- function(features,
   walkability_score <- min(1, mean(c(norm_mrt_dist, norm_bus_dist))) * 100
   
   # Penalty
-  calc_penalty <- function(mrt_crowd, bus_volume) {
-    mean(c(
-      ifelse(is.na(mrt_crowd), 0, (mrt_crowd - 1) / 2),
-      ifelse(is.na(bus_volume), 0, bus_volume / 500)
-    ))
+  ### Calculated based on analysis of 1000 HDB areas. Q1-3 corresponds to 0.25, 0.50, 0.750 of the score respectively.
+  calc_penalty <- function(mrt_crowd, bus_volume, bus_time) {
+    bus_penalty <- case_when(
+      bus_time == "AM_offpeak" ~ case_when(
+        bus_volume > 510.57587 ~ 0.75,          # Exceeds Q3: penalty = 0.75
+        bus_volume > 377.89512 ~ 0.50,          # Between Q2 and Q3: penalty = 0.50
+        bus_volume > 284.60948 ~ 0.25,          # Between Q1 and Q2: penalty = 0.25
+        TRUE ~ 0                                # Below Q1: penalty = 0
+      ),
+      bus_time == "AM_peak" ~ case_when(
+        bus_volume > 344.80859 ~ 0.75,          # Q3 for AM peak
+        bus_volume > 272.23731 ~ 0.50,          # Q2 for AM peak
+        bus_volume > 213.55032 ~ 0.25,          # Q1 for AM peak
+        TRUE ~ 0                                # Below Q1: penalty = 0
+      ),
+      bus_time == "PM_offpeak" ~ case_when(
+        bus_volume > 177.89135 ~ 0.75,          # Q3 for PM offpeak
+        bus_volume > 109.52059 ~ 0.50,          # Q2 for PM offpeak
+        bus_volume > 70.61924 ~ 0.25,           # Q1 for PM offpeak
+        TRUE ~ 0                                # Below Q1: penalty = 0
+      ),
+      bus_time == "PM_peak" ~ case_when(
+        bus_volume > 181.15419 ~ 0.75,          # Q3 for PM peak
+        bus_volume > 123.98769 ~ 0.50,          # Q2 for PM peak
+        bus_volume > 84.52938 ~ 0.25,           # Q1 for PM peak
+        TRUE ~ 0                                # Below Q1: penalty = 0
+      ),
+      TRUE ~ 0
+    )
+    
+    # For the MRT crowd part, keep your previous logic:
+    mrt_penalty <- ifelse(is.na(mrt_crowd), 0, (mrt_crowd - 1) / 2)
+    
+    # Combine the two penalties (here we take the mean; adjust this method if needed)
+    return(mean(c(mrt_penalty, bus_penalty)))
   }
   
   # Compute congestion per time slot
   congestion_list <- list(
-    AM_peak = calc_penalty(features$mrt_crowd_AM_peak, features$bus_volume_AM_peak),
-    AM_offpeak = calc_penalty(features$mrt_crowd_AM_offpeak, features$bus_volume_AM_offpeak),
-    PM_peak = calc_penalty(features$mrt_crowd_PM_peak, features$bus_volume_PM_peak),
-    PM_offpeak = calc_penalty(features$mrt_crowd_PM_offpeak, features$bus_volume_PM_offpeak)
+    AM_peak     = calc_penalty(features$mrt_crowd_AM_peak, features$bus_volume_AM_peak, "AM_peak"),
+    AM_offpeak  = calc_penalty(features$mrt_crowd_AM_offpeak, features$bus_volume_AM_offpeak, "AM_offpeak"),
+    PM_peak     = calc_penalty(features$mrt_crowd_PM_peak, features$bus_volume_PM_peak, "PM_peak"),
+    PM_offpeak  = calc_penalty(features$mrt_crowd_PM_offpeak, features$bus_volume_PM_offpeak, "PM_offpeak")
   )
   
   # Filter congestion by selected time slots

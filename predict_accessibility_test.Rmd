@@ -1,0 +1,852 @@
+---
+title: "Predict Accessibility Score"
+output: html_document
+params:
+  location_input: ""
+  weight_mrt: 25
+  weight_bus: 25
+  weight_walk: 25
+  weight_congestion: 25
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Libraries
+
+```{r}
+
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(rjson)
+library(httr)
+library(jsonlite)
+library(geosphere)
+library(sf)
+library(purrr)
+library(units)
+```
+
+# Authenticate OneMap API
+
+```{r}
+auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
+email <- "loowenwen1314@gmail.com"
+password <- "sochex-6jobge-fomsYb"
+auth_body <- list(email = email, password = password)
+response <- POST(url = auth_url, body = auth_body, encode = "json")
+
+if (status_code(response) == 200) {
+  result <- content(response, as = "text", encoding = "UTF-8")
+  data <- fromJSON(result)
+  token <- data$access_token
+  Sys.setenv(ONEMAP_TOKEN = token)
+} else {
+  print(paste("Error:", status_code(response)))
+}
+```
+
+### Test Location input
+```{r}
+# Example input: Postal code or Coordinates (lat, lon)
+location_input <- "543305" # Replace this with the postal code or lat, lon pair
+
+# Check if the input is a valid postal code or coordinate pair
+if (grepl(",", location_input)) {
+  # If coordinates (lat, lon) are entered
+  latlon <- as.numeric(strsplit(location_input, ",")[[1]])
+  if (length(latlon) == 2) {
+    lat <- latlon[1]
+    lon <- latlon[2]
+  } else {
+    stop("Invalid coordinate format. Please enter as 'lat, lon'.")
+  }
+} else {
+  # If postal code is entered, use OneMap API to get lat, lon
+  base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+  token <- Sys.getenv("ONEMAP_TOKEN")
+  
+  request_url <- paste0(base_url, "?searchVal=", location_input, "&returnGeom=Y&getAddrDetails=Y")
+  res <- GET(request_url, add_headers(Authorization = token))
+  parsed <- content(res, as = "parsed", type = "application/json")
+  
+  if (length(parsed$results) == 0) {
+    stop("No results found for this postal code.")
+  }
+  
+  lat <- as.numeric(parsed$results[[1]]$LATITUDE)
+  lon <- as.numeric(parsed$results[[1]]$LONGITUDE)
+}
+```
+
+# Load and Process Data
+
+```{r}
+
+parse_crowd_json <- function(filepath) {
+  options(lubridate.verbose = FALSE)
+  # Read and preprocess JSON content 
+  json_content <- paste0(readLines(filepath, warn = FALSE, encoding = "UTF-8"), collapse = "")
+  json_content <- trimws(json_content)
+  json_content <- sub(",\\s*$", "", json_content)  # Remove trailing comma
+  
+  # Validate JSON
+  if (!jsonlite::validate(json_content)) {
+    stop("Invalid JSON in file: ", filepath)
+  }
+  
+  # Parse JSON with error handling
+  raw <- tryCatch({
+    jsonlite::fromJSON(json_content)
+  }, error = function(e) {
+    message("Error parsing JSON from: ", filepath)
+    message("Error details: ", e$message)
+    message("First 200 chars: ", substr(json_content, 1, 200))
+    stop("Failed to parse JSON")
+  })
+  
+  stations_df <- raw$value$Stations[[1]]  # <-- the [1] is KEY
+  
+  all_intervals <- purrr::map2_dfr(
+    stations_df$Station,
+    stations_df$Interval,
+    function(station_code, interval_df) {
+      interval_df %>%
+        mutate(
+          Station = station_code,
+          datetime = suppressMessages(ymd_hms(Start, tz = "Asia/Singapore")),
+          hour = hour(datetime),
+          crowd_score = case_when(
+            CrowdLevel == "l" ~ 1,
+            CrowdLevel == "m" ~ 2,
+            CrowdLevel == "h" ~ 3,
+            TRUE ~ NA_real_
+          ),
+          time_slot = case_when(
+            hour >= 6 & hour < 9 ~ "AM_peak",
+            hour == 5 | (hour >= 9 & hour < 17) ~ "AM_offpeak",
+            hour >= 17 & hour < 19 ~ "PM_peak",
+            (hour >= 19 & hour <= 23) | (hour >= 0 & hour < 2) ~ "PM_offpeak",
+            TRUE ~ "Other" # as the dataset is a 24hr forecast, it includes all timings. They will just be categorised as other since the MRT does not run from 1am - 4.59am. MRT generally starts at ~5.30am so timing from 5am onwards will be taken
+          )
+        )
+    }
+  )
+  
+  return(all_intervals)
+}
+# Now use the modified function to parse your MRT crowd data
+
+mrt_crowdDensity <- bind_rows(
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_CCL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_DTL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_EWL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_CEL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_CGL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_NEL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_NSL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_BPL.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_SLRT.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_PLRT.json"),
+  parse_crowd_json("../data/MRT_CrowdDensity/CrowdDensity_TEL.json")
+)
+
+```
+
+### Importing Bus and MRT location information from "planningareapolygons.R"
+
+```{r}
+readRDS("../data/RDS Files/planning_area_polygons.rds")
+bus_stops <- readRDS("../data/RDS Files/bus_with_planning.rds")
+mrt_lrt <- readRDS("../data/RDS Files/mrt_stations.rds")
+
+mrt_lrt <- mrt_lrt %>%
+  st_as_sf() %>%
+  st_transform(crs = 4326)
+
+bus_stops <- bus_stops %>%
+  st_as_sf() %>%
+  st_transform(crs = 4326)
+```
+
+
+
+# Fetch all bus routes from API
+
+```{r}
+get_bus_routes <- function() {
+  url <- "http://datamall2.mytransport.sg/ltaodataservice/BusRoutes"
+  api_key <- "o6OuJxI3Re+qYgFQzb+4+w=="  # Replace with your own API key
+  
+  offset <- 0
+  all_data <- list()
+  
+  repeat {
+    response <- GET(url, add_headers(AccountKey = api_key), query = list("$skip" = offset))
+    data <- content(response, "text", encoding = "UTF-8")
+    parsed_data <- fromJSON(data, flatten = TRUE)
+    
+    if (length(parsed_data$value) == 0) break
+    all_data <- append(all_data, list(parsed_data$value))
+    offset <- offset + 500
+  }
+  
+  bind_rows(all_data)
+}
+
+# Fetch all bus routes from API
+bus_routes_raw <- get_bus_routes()
+
+# Create lookup table: BusStopCode -> ServiceNo
+bus_services_lookup <- bus_routes_raw %>%
+  select(ServiceNo, BusStopCode) %>%
+  distinct() %>%
+  mutate(BusStopCode = str_pad(as.character(BusStopCode), 5, side = "left", pad = "0"))
+
+```
+
+
+```{r feature-engineering}
+
+engineer_features <- function(lat, lon, distance = 500) {
+  
+  #Time based Bus passenger volume
+  busstops_passengerVolume <- read_csv("../data/PV_busstops.csv", show_col_types = FALSE) %>%
+    filter(DAY_TYPE == "WEEKDAY") %>%
+    mutate(
+      PT_CODE = str_pad(as.character(PT_CODE), 5, "left", "0"),
+      BusStop_code = PT_CODE,
+      time_slot = case_when(
+        TIME_PER_HOUR >= 6 & TIME_PER_HOUR < 9 ~ "AM_peak",
+        TIME_PER_HOUR == 5 | (TIME_PER_HOUR >= 9 & TIME_PER_HOUR < 17) ~ "AM_offpeak",
+        TIME_PER_HOUR >= 17 & TIME_PER_HOUR < 19 ~ "PM_peak",
+        (TIME_PER_HOUR >= 19 & TIME_PER_HOUR <= 23) | (TIME_PER_HOUR >= 0 & TIME_PER_HOUR < 2) ~ "PM_offpeak",
+        TRUE ~ "Other"
+      )
+    ) %>%
+    group_by(BusStop_code, time_slot) %>%
+    summarise(
+      daily_avg_vol = sum(TOTAL_TAP_IN_VOLUME, na.rm = TRUE) / 20,
+      .groups = 'drop'
+    )
+
+  bus_coords <- bus_stops %>%
+    mutate(BusStop_code = as.character(BusStopCode)) %>%
+    st_transform(crs = 4326)
+  
+  
+  # Convert user location to sf POINT
+  location_point <- st_sfc(st_point(c(lon, lat)), crs = 4326)
+  
+  ### MRT ANALYSIS
+  mrt_coords <- mrt_lrt %>%
+    st_make_valid() %>%
+    mutate(dist = as.numeric(st_distance(geometry, location_point))) %>%
+    filter(dist < distance)
+  
+  num_mrt_stations <- nrow(mrt_coords)
+  avg_dist_mrt <- ifelse(num_mrt_stations > 0, mean(mrt_coords$dist), NA)
+  
+  if (num_mrt_stations == 0) {
+    message("No MRT stations found within 500m radius. MRT score may be low or NA.")
+  }
+  
+  mrt_station_names <- mrt_coords$mrt_station
+  
+  # Extract MRT line codes (e.g., NS1 -> NS)
+  mrt_lines <- mrt_coords %>%
+    pull(mrt_line) %>%
+    unique()
+  
+  mrt_station_distances <- mrt_coords %>%
+    st_drop_geometry() %>%
+    select(mrt_station, dist) %>%
+    arrange(dist)
+  
+  num_unique_mrt_lines <- length(mrt_lines)
+  
+  ### BUS ANALYSIS
+  bus_nearby <- bus_coords %>%
+    st_make_valid() %>%
+    mutate(dist = as.numeric(st_distance(geometry, location_point))) %>%
+    filter(dist < distance)
+  
+  num_bus_stops <- nrow(bus_nearby)
+  avg_dist_bus <- ifelse(num_bus_stops > 0, mean(bus_nearby$dist), NA)
+
+  bus_stop_distances <- bus_nearby %>%
+    st_drop_geometry() %>%
+    select(BusStop_code, Description, dist) %>%
+    arrange(dist)
+  
+  if (num_bus_stops == 0) {
+    message("No bus stops found within 500m radius. Bus score may be low or NA.")
+  }
+  
+  nearby_bus_codes <- bus_nearby$BusStop_code
+  
+  # Join to busRoutes lookup to get services at nearby stops
+  bus_services_list <- bus_services_lookup %>%
+    filter(BusStopCode %in% nearby_bus_codes) %>%
+    pull(ServiceNo) %>%
+    unique()
+  
+  num_unique_bus_services <- length(bus_services_list)
+  
+  ### CROWD / VOLUME ANALYSIS
+  mrtNames_crowdDensity <- mrt_crowdDensity %>%
+    rowwise() %>%
+    mutate(STN_NAME = mrt_lrt$mrt_station[
+      which(str_detect(mrt_lrt$stn_code, Station))[1]
+    ])
+  
+  mrt_crowd_scores <- mrtNames_crowdDensity %>%
+    filter(STN_NAME %in% mrt_station_names) %>%
+    group_by(time_slot) %>%
+    summarise(
+      avg_crowd = mean(crowd_score, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    pivot_wider(names_from = time_slot, values_from = avg_crowd, names_prefix = "mrt_")
+  
+  
+  bus_volume_by_slot <- bus_nearby %>%
+    left_join(busstops_passengerVolume, by = "BusStop_code") %>%
+    group_by(time_slot) %>%
+    summarise(avg_vol = mean(daily_avg_vol, na.rm = TRUE), .groups = "drop") %>%
+    pivot_wider(names_from = time_slot, values_from = avg_vol, names_prefix = "bus_")
+  
+  ### RETURN
+  return(list(
+    # Quantitative features
+    num_mrt_stations = num_mrt_stations,
+    avg_dist_mrt = avg_dist_mrt,
+    num_unique_mrt_lines = num_unique_mrt_lines,
+    num_bus_stops = num_bus_stops,
+    avg_dist_bus = avg_dist_bus,
+    num_unique_bus_services = num_unique_bus_services,
+    mrt_crowd_AM_peak = mrt_crowd_scores$mrt_AM_peak,
+    mrt_crowd_AM_offpeak = mrt_crowd_scores$mrt_AM_offpeak,
+    mrt_crowd_PM_peak = mrt_crowd_scores$mrt_PM_peak,
+    mrt_crowd_PM_offpeak = mrt_crowd_scores$mrt_PM_offpeak,
+    bus_volume_AM_peak = bus_volume_by_slot$bus_AM_peak,
+    bus_volume_AM_offpeak = bus_volume_by_slot$bus_AM_offpeak,
+    bus_volume_PM_peak = bus_volume_by_slot$bus_PM_peak,
+    bus_volume_PM_offpeak = bus_volume_by_slot$bus_PM_offpeak,
+    
+    # Detailed lists
+    nearby_mrt_stations = mrt_station_names,
+    nearby_mrt_lines = mrt_lines,
+    nearby_bus_stops = nearby_bus_codes,
+    bus_services_available = bus_services_list,
+    distance_radius = distance,
+    mrt_stop_distances = mrt_station_distances,
+    bus_stop_distances = bus_stop_distances
+  ))
+}
+
+```
+
+```{r scoring-function}
+normalised_score <- function(features, 
+                             weight_mrt = 1/4 * 100, 
+                             weight_bus = 1/4 * 100, 
+                             weight_walk = 1/4 * 100,
+                             weight_congestion = 1/4 * 100,
+                             selected_time_slots = c("AM_peak", "AM_offpeak", "PM_peak", "PM_offpeak")) {
+  
+  # --- Normalise weights ---
+  sum_weights <- weight_mrt + weight_bus + weight_walk + weight_congestion
+  norm_mrt <- weight_mrt / sum_weights
+  norm_bus <- weight_bus / sum_weights
+  norm_walk <- weight_walk / sum_weights
+  norm_congestion <- weight_congestion / sum_weights
+  
+  # ---- Normalise/scale scores ----
+  # MRT score (distance excluded)
+  score_mrt <- min(1, mean(c(
+    ifelse(is.na(features$num_mrt_stations), 0, min(features$num_mrt_stations / 3, 1)),
+    ifelse(is.na(features$num_unique_mrt_lines), 0, min(features$num_unique_mrt_lines / 3, 1))
+    ))) * 100
+  
+  # Bus score (distance excluded)
+  score_bus <- min(1, mean(c(
+    ifelse(is.na(features$num_bus_stops), 0, min(features$num_bus_stops / 20, 1)),
+    ifelse(is.na(features$num_unique_bus_services), 0, min(features$num_unique_bus_services / 30, 1))
+    ))) * 100
+  
+  # Walkability (distance included)
+  norm_mrt_dist <- max(0, 1 - (ifelse(is.na(features$avg_dist_mrt), features$distance_radius, features$avg_dist_mrt) / features$distance_radius))
+  norm_bus_dist <- max(0, 1 - (ifelse(is.na(features$avg_dist_bus), features$distance_radius, features$avg_dist_bus) / features$distance_radius))
+  
+  walkability_score <- min(1, mean(c(norm_mrt_dist, norm_bus_dist))) * 100
+  
+  # Penalty
+  calc_penalty <- function(mrt_crowd, bus_volume) {
+    mean(c(
+      ifelse(is.na(mrt_crowd), 0, (mrt_crowd - 1) / 2),
+      ifelse(is.na(bus_volume), 0, bus_volume / 500)
+    ))
+  }
+  
+  # Compute congestion per time slot
+  congestion_list <- list(
+    AM_peak = calc_penalty(features$mrt_crowd_AM_peak, features$bus_volume_AM_peak),
+    AM_offpeak = calc_penalty(features$mrt_crowd_AM_offpeak, features$bus_volume_AM_offpeak),
+    PM_peak = calc_penalty(features$mrt_crowd_PM_peak, features$bus_volume_PM_peak),
+    PM_offpeak = calc_penalty(features$mrt_crowd_PM_offpeak, features$bus_volume_PM_offpeak)
+  )
+  
+  # Filter congestion by selected time slots
+  filtered_congestion <- congestion_list[selected_time_slots]
+  congestion_penalty <- mean(unlist(filtered_congestion), na.rm = TRUE)
+  
+  # Flip to congestion score (higher = better), scale to 0–100
+  congestion_score <- max(0, min(1, 1 - congestion_penalty)) * 100
+  
+  # Weighted average of all components
+  final_score <- (
+    score_mrt * norm_mrt +
+      score_bus * norm_bus +
+      walkability_score * norm_walk +
+      congestion_score * norm_congestion
+  )
+  
+  # ---- Create breakdown ----
+  breakdown <- list(
+    total_score = final_score,
+    
+    score_mrt = score_mrt,
+    score_bus = score_bus,
+    walkability_score = walkability_score,
+    congestion_penalty = congestion_penalty,
+    congestion_score = congestion_score,
+    time_slot_congestion = congestion_list[selected_time_slots],
+    
+    mrt_score_components = list(
+      num_mrt_stations = features$num_mrt_stations,
+      avg_dist_mrt = features$avg_dist_mrt,
+      num_unique_mrt_lines = features$num_unique_mrt_lines,
+      nearby_mrt_stations = features$nearby_mrt_stations,
+      nearby_mrt_lines = features$nearby_mrt_lines
+    ),
+    
+    bus_score_components = list(
+      num_bus_stops = features$num_bus_stops,
+      avg_dist_bus = features$avg_dist_bus,
+      num_unique_bus_services = features$num_unique_bus_services,
+      nearby_bus_stops = features$nearby_bus_stops,
+      bus_services_available = features$bus_services_available
+    ),
+    
+    congestion_components = list(
+      bus_volume_AM_peak = features$bus_volume_AM_peak,
+      bus_volume_AM_offpeak = features$bus_volume_AM_offpeak,
+      bus_volume_PM_peak = features$bus_volume_PM_peak,
+      bus_volume_PM_offpeak = features$bus_volume_PM_offpeak,
+      
+      mrt_crowd_AM_peak = features$mrt_crowd_AM_peak,
+      mrt_crowd_AM_offpeak = features$mrt_crowd_AM_offpeak,
+      mrt_crowd_PM_peak = features$mrt_crowd_PM_peak,
+      mrt_crowd_PM_offpeak = features$mrt_crowd_PM_offpeak
+    ),
+    
+    time_slot_congestion = congestion_list,
+    
+    walkability = list(
+      avg_mrt_distance = features$avg_dist_mrt,
+      avg_bus_distance = features$avg_dist_bus,
+      walkability_score = walkability_score
+    )
+  )
+  
+  return(breakdown)
+  
+}
+
+
+```
+
+
+```{r main-function}
+predict_accessibility <- function(location_input, 
+                                  weight_mrt = 1/4 * 100, 
+                                  weight_bus = 1/4 * 100, 
+                                  weight_walk = 1/4 * 100, 
+                                  weight_congestion = 1/4 * 100,
+                                  selected_time_slots = c("AM_peak", "AM_offpeak", "PM_peak", "PM_offpeak"),
+                                  distance = 500) {
+  
+  # Determine if input is postal code or coordinate pair
+  if (is.character(location_input)) {
+    base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+    token <- Sys.getenv("ONEMAP_TOKEN")
+    
+    request_url <- paste0(base_url, "?searchVal=", location_input, "&returnGeom=Y&getAddrDetails=Y")
+    res <- GET(request_url, add_headers(Authorization = token))
+    parsed <- content(res, as = "parsed", type = "application/json")
+    
+    if (length(parsed$results) == 0) {
+      stop("No results found for this postal code.")
+    }
+    
+    lat <- as.numeric(parsed$results[[1]]$LATITUDE)
+    lon <- as.numeric(parsed$results[[1]]$LONGITUDE)
+    
+  } else if (is.numeric(location_input) && length(location_input) == 2) {
+    
+    latlon <- location_input
+    if (latlon[1] > 90) {
+      # (lon, lat) mistakenly passed, flip
+      lon <- latlon[1]
+      lat <- latlon[2]
+      message("INFO: Flipped (lon, lat) to (lat, lon)")
+    } else {
+      lat <- latlon[1]
+      lon <- latlon[2]
+    }
+    
+  } else {
+    stop("Invalid input: please provide either a postal code (character) or coordinates (numeric vector of length 2).")
+  }
+  
+  
+  features <- engineer_features(lat, lon, distance = distance)
+  
+  score_breakdown <- normalised_score(
+    features, 
+    weight_mrt = weight_mrt, 
+    weight_bus = weight_bus, 
+    weight_walk = weight_walk, 
+    weight_congestion = weight_congestion,
+    selected_time_slots = selected_time_slots
+  )
+  
+  return(list(
+    location_input = location_input,
+    latitude = lat,
+    longitude = lon,
+    score = score_breakdown$total_score,
+    score_breakdown = score_breakdown,
+    features = features
+  ))
+}
+
+```
+
+### Finding distribution of data breakdown with list of postal codes in singapore
+
+
+### Getting data on sample to find distribution of each attribute
+
+```{r}
+# --- Step 1: Extract & Source the Rmd code ---
+# Convert the Rmd into an R script so that its functions become accessible.
+# (This step uses knitr::purl; you only need to run it once.)
+knitr::purl("predict_accessibility_test.Rmd", output = "accessibility_functions.R")
+source("accessibility_functions.R")
+
+# --- Step 2: Read and Process the GeoJSON File ---
+library(sf)
+library(dplyr)
+
+# 1. Read the GeoJSON file
+hdb_data <- st_read("../data/HDBExistingBuilding.geojson")
+
+# 2. Repair any invalid geometries
+hdb_data <- st_make_valid(hdb_data)
+
+# 3. Compute centroids for MULTIPOLYGON features
+hdb_data_centroids <- st_centroid(hdb_data)
+
+# 4. Transform to EPSG:4326 (if not already)
+hdb_data_centroids <- st_transform(hdb_data_centroids, crs = 4326)
+
+# 5. Extract coordinates from the centroids
+coords <- as.data.frame(st_coordinates(hdb_data_centroids))
+names(coords) <- c("longitude", "latitude")  # Ensure correct order
+
+# 6. Combine the coordinates with the original attribute data (dropping geometry)
+hdb_data_df <- hdb_data_centroids %>%
+  st_drop_geometry() %>%
+  bind_cols(coords)
+
+# Inspect the resulting data frame
+print(head(hdb_data_df))
+
+# --- Step 3: Get Evenly Distributed Samples Across Singapore ---
+# Set the number of desired clusters (locations)
+k <- 1000
+set.seed(123)  # for reproducibility
+
+# Use hdb_data_df as your base dataset.
+# Ensure hdb_data_df contains "latitude" and "longitude"
+km <- kmeans(hdb_data_df[, c("latitude", "longitude")], centers = k)
+
+# Add the cluster assignment to your data.
+hdb_data_df$cluster <- km$cluster
+
+# Prepare a data frame of cluster centers.
+centers <- as.data.frame(km$centers) %>%
+  mutate(cluster = row_number()) %>%
+  rename(latitude.center = latitude,
+         longitude.center = longitude)
+
+# Merge the centers back into the data by cluster.
+hdb_data_df <- left_join(hdb_data_df, centers, by = "cluster")
+
+# Compute the Euclidean distance from each point to its cluster's center.
+hdb_data_df <- hdb_data_df %>%
+  mutate(dist_to_center = sqrt((latitude - latitude.center)^2 + (longitude - longitude.center)^2))
+
+# Within each cluster, select the building (postal code) closest to the centroid.
+sampled_data <- hdb_data_df %>%
+  group_by(cluster) %>%
+  slice(which.min(dist_to_center)) %>%
+  ungroup()
+
+# Visualize the clustering and sampling:
+library(ggplot2)
+ggplot(hdb_data_df, aes(x = longitude, y = latitude)) +
+  geom_point(color = "gray70", alpha = 0.5) +
+  geom_point(data = sampled_data, color = "red", size = 2) +
+  ggtitle("Approximately 1000 Evenly Distributed HDB Buildings in Singapore")
+
+# --- Step 4: Compute Accessibility Scores ---
+print("Checking sampled_data:")
+print(head(sampled_data))
+
+# Apply your accessibility function to each sampled building,
+# using the latitude and longitude from the centroids.
+accessibility_df <- sampled_data %>%
+  mutate(result = pmap(list(latitude, longitude), function(lat, lon) {
+    predict_accessibility(c(as.numeric(lat), as.numeric(lon)))
+  })) %>%
+  unnest_wider(result, names_sep = "_")
+
+print(head(accessibility_df))
+
+# --- Step 5: Merge and Save the Results ---
+final_data <- cbind(sampled_data, accessibility_df)
+print(final_data)
+
+
+```
+### Further processing of results
+
+```{r}
+df_unlisted <- accessibility_df %>%
+  select(result_score_breakdown, result_features) %>%
+  unnest_wider(result_score_breakdown, names_sep = "_", names_repair = "unique") %>%
+  unnest_wider(result_features, names_sep = "_", names_repair = "unique")
+
+head(df_unlisted)
+
+further_df <- df_unlisted %>%
+  select(result_score_breakdown_total_score, result_score_breakdown_score_mrt, result_score_breakdown_score_bus, result_score_breakdown_walkability_score, result_score_breakdown_congestion_score, result_features_num_mrt_stations, result_features_num_unique_mrt_lines, result_features_num_bus_stops, result_features_num_unique_bus_services, result_features_avg_dist_mrt, result_features_avg_dist_bus, result_features_mrt_crowd_AM_peak, result_features_mrt_crowd_AM_offpeak, result_features_mrt_crowd_PM_offpeak, result_features_mrt_crowd_PM_peak, result_features_bus_volume_AM_peak, result_features_bus_volume_AM_offpeak, result_features_bus_volume_PM_peak, result_features_bus_volume_PM_offpeak) %>%
+  filter(pmap_lgl(across(result_features_bus_volume_AM_offpeak:result_features_mrt_crowd_PM_offpeak), function(...) {
+    values <- list(...)
+    # For each cell in this row, get its length and check all are 1.
+    all(vapply(values, length, numeric(1)) == 1)
+  })) %>%
+  mutate(
+    across(result_features_bus_volume_AM_peak:result_features_bus_volume_PM_offpeak, 
+           ~ map_dbl(.x, ~ .x[[1]]))
+  )
+
+head(further_df)
+
+average <- further_df %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  mutate(
+    searchval = "Average",
+    road_name = "Average"
+  )
+average_long <- average %>%
+  pivot_longer(
+    cols = -c(searchval, road_name),  # keep these columns as identifiers
+    names_to = "Measure",
+    values_to = "Average"
+  )
+
+head(average)
+```
+
+### Plotting on scatterplot graph
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Pivot MRT crowd related columns into long format.
+mrt_crowd_long <- further_df %>%
+  select(result_features_mrt_crowd_AM_peak, 
+         result_features_mrt_crowd_AM_offpeak, 
+         result_features_mrt_crowd_PM_peak, 
+         result_features_mrt_crowd_PM_offpeak) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "time_period",
+    values_to = "mrt_crowd"
+  )
+
+# Plot a histogram for each MRT crowd variable in separate panels.
+ggplot(mrt_crowd_long, aes(x = mrt_crowd)) +
+  geom_histogram(bins = 10, fill = "skyblue", color = "black") +
+  facet_wrap(~ time_period, scales = "free_x") +
+  labs(
+    title = "Distribution of MRT Crowd Levels by Time Period",
+    x = "MRT Crowd Level",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+
+bus_volume_long <- further_df %>%
+  select(result_features_bus_volume_AM_peak, 
+         result_features_bus_volume_AM_offpeak, 
+         result_features_bus_volume_PM_peak, 
+         result_features_bus_volume_PM_offpeak) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "time_period",
+    values_to = "bus_volume"
+  )
+
+# Plot histograms for bus volumes
+ggplot(bus_volume_long, aes(x = bus_volume)) +
+  geom_histogram(bins = 10, fill = "salmon", color = "black") +
+  facet_wrap(~ time_period, scales = "free_x") +
+  labs(
+    title = "Distribution of Bus Volumes by Time Period",
+    x = "Bus Volume",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+```
+```{r}
+
+# Compute Q1 (25th percentile), Q2 (median) and Q3 (75th percentile) for bus_volume in each time period.
+busVol_quantile_summary <- bus_volume_long %>%
+  group_by(time_period) %>%
+  summarise(
+    Q1 = quantile(bus_volume, probs = 0.25, na.rm = TRUE),
+    Q2 = quantile(bus_volume, probs = 0.5, na.rm = TRUE),
+    Q3 = quantile(bus_volume, probs = 0.75, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(Q1, Q2, Q3),
+    names_to = "quartile",
+    values_to = "bus_volume_value"
+  )
+
+print(busVol_quantile_summary)
+
+```
+
+
+```{r}
+# Prepare Bus data: number of bus stops and unique bus services.
+bus_data <- further_df %>%
+  select(result_features_num_bus_stops, result_features_num_unique_bus_services) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "variable",
+    values_to = "count"
+  )
+
+# Plot histograms for Bus metrics side by side.
+ggplot(bus_data, aes(x = count)) +
+  geom_histogram(bins = 10, fill = "darkseagreen", color = "black") +
+  facet_wrap(~ variable, ncol = 2, scales = "free_x") +
+  scale_x_continuous(breaks = seq(min(bus_data$count, na.rm = TRUE),
+                                  max(bus_data$count, na.rm = TRUE),
+                                  5),
+                     expand = c(0, 0)) +
+  labs(title = "Distribution of Bus Metrics",
+       x = "Count",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 0, hjust = 1))
+```
+
+```{r}
+
+# Compute Q1 (25th percentile), Q2 (median) and Q3 (75th percentile) for count in each time period.
+busStopService_quantile_summary <- bus_data %>%
+  group_by(variable) %>%
+  summarise(
+    Q1 = quantile(count, probs = 0.25, na.rm = TRUE),
+    Q2 = quantile(count, probs = 0.5, na.rm = TRUE),
+    Q3 = quantile(count, probs = 0.75, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(Q1, Q2, Q3),
+    names_to = "quartile",
+    values_to = "count"
+  )
+
+print(busStopService_quantile_summary)
+
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Prepare MRT data: unique MRT lines and MRT stations.
+mrt_data <- further_df %>%
+  select(result_features_num_unique_mrt_lines, result_features_num_mrt_stations) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "variable",
+    values_to = "count"
+  )
+
+# Plot histograms for MRT metrics side by side.
+ggplot(mrt_data, aes(x = count)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "black") +
+  facet_wrap(~ variable, ncol = 2, scales = "free_x") +
+  scale_x_continuous(breaks = seq(min(mrt_data$count, na.rm = TRUE),
+                                  max(mrt_data$count, na.rm = TRUE),
+                                  1),
+                     expand = c(0, 0)) +
+  labs(title = "Distribution of MRT Metrics",
+       x = "Count",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 0, hjust = 1))
+```
+
+```{r}
+
+# Compute Q1 (25th percentile), Q2 (median) and Q3 (75th percentile) for count in each time period.
+mrt_quantile_summary <- mrt_data %>%
+  group_by(variable) %>%
+  summarise(
+    Q1 = quantile(count, probs = 0.25, na.rm = TRUE),
+    Q2 = quantile(count, probs = 0.5, na.rm = TRUE),
+    Q3 = quantile(count, probs = 0.75, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(Q1, Q2, Q3),
+    names_to = "quartile",
+    values_to = "count"
+  )
+
+print(mrt_quantile_summary)
+
+```

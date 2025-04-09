@@ -421,9 +421,8 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  return(combined_score)
                                },
             
-                               calculate_rqs = function(start, end, date, time_period, maxWalkDistance = 1000,
-                                                         weights = c(transport = 0.25, comfort = 0.25, 
-                                                          robustness = 0.25, service = 0.25)) {
+                               calculate_rqs = function(start, end, date, time_period, maxWalkDistance = 1000, weights = c(transport = 0.25, comfort = 0.25, 
+                                                                                                                            robustness = 0.25, service = 0.25)  ) {
                                  
                                  end_coord <- get_coordinates_from_postal(end)
                                  
@@ -484,8 +483,6 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                              )
 )
                                                      
-
-
 
 
 

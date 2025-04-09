@@ -1,0 +1,342 @@
+---
+title: "Predict Accessibility Score"
+output: html_document
+params:
+  location_input: ""
+  weight_mrt: 25
+  weight_bus: 25
+  weight_walk: 25
+  weight_congestion: 25
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Libraries
+
+```{r}
+
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(rjson)
+library(httr)
+library(jsonlite)
+library(geosphere)
+library(sf)
+library(purrr)
+library(units)
+```
+
+### Finding distribution of data breakdown with list of postal codes in singapore
+
+
+### Getting data on sample to find distribution of each attribute
+
+```{r}
+# --- Step 1: Extract & Source the Rmd code ---
+source("accessibility_functions.R")
+
+# --- Step 2: Read and Process the GeoJSON File ---
+library(sf)
+library(dplyr)
+
+# 1. Read the GeoJSON file
+hdb_data <- st_read("data/HDBExistingBuilding.geojson")
+
+# 2. Repair any invalid geometries
+hdb_data <- st_make_valid(hdb_data)
+
+# 3. Compute centroids for MULTIPOLYGON features
+hdb_data_centroids <- st_centroid(hdb_data)
+
+# 4. Transform to EPSG:4326 (if not already)
+hdb_data_centroids <- st_transform(hdb_data_centroids, crs = 4326)
+
+# 5. Extract coordinates from the centroids
+coords <- as.data.frame(st_coordinates(hdb_data_centroids))
+names(coords) <- c("longitude", "latitude")  # Ensure correct order
+
+# 6. Combine the coordinates with the original attribute data (dropping geometry)
+hdb_data_df <- hdb_data_centroids %>%
+  st_drop_geometry() %>%
+  bind_cols(coords)
+
+# Inspect the resulting data frame
+print(head(hdb_data_df))
+
+# --- Step 3: Get Evenly Distributed Samples Across Singapore ---
+# Set the number of desired clusters (locations)
+k <- 1000
+set.seed(123)  # for reproducibility
+
+# Use hdb_data_df as your base dataset.
+# Ensure hdb_data_df contains "latitude" and "longitude"
+km <- kmeans(hdb_data_df[, c("latitude", "longitude")], centers = k)
+
+# Add the cluster assignment to your data.
+hdb_data_df$cluster <- km$cluster
+
+# Prepare a data frame of cluster centers.
+centers <- as.data.frame(km$centers) %>%
+  mutate(cluster = row_number()) %>%
+  rename(latitude.center = latitude,
+         longitude.center = longitude)
+
+# Merge the centers back into the data by cluster.
+hdb_data_df <- left_join(hdb_data_df, centers, by = "cluster")
+
+# Compute the Euclidean distance from each point to its cluster's center.
+hdb_data_df <- hdb_data_df %>%
+  mutate(dist_to_center = sqrt((latitude - latitude.center)^2 + (longitude - longitude.center)^2))
+
+# Within each cluster, select the building (postal code) closest to the centroid.
+sampled_data <- hdb_data_df %>%
+  group_by(cluster) %>%
+  slice(which.min(dist_to_center)) %>%
+  ungroup()
+
+# Visualize the clustering and sampling:
+library(ggplot2)
+ggplot(hdb_data_df, aes(x = longitude, y = latitude)) +
+  geom_point(color = "gray70", alpha = 0.5) +
+  geom_point(data = sampled_data, color = "red", size = 2) +
+  ggtitle("Approximately 1000 Evenly Distributed HDB Buildings in Singapore")
+
+# --- Step 4: Compute Accessibility Scores ---
+print("Checking sampled_data:")
+print(head(sampled_data))
+
+# Apply your accessibility function to each sampled building,
+# using the latitude and longitude from the centroids.
+accessibility_df <- sampled_data %>%
+  mutate(result = pmap(list(latitude, longitude), function(lat, lon) {
+    predict_accessibility(c(as.numeric(lat), as.numeric(lon)))
+  })) %>%
+  unnest_wider(result, names_sep = "_")
+
+print(head(accessibility_df))
+
+# --- Step 5: Merge and Save the Results ---
+final_data <- cbind(sampled_data, accessibility_df)
+print(final_data)
+
+
+```
+### Further processing of results
+
+```{r}
+df_unlisted <- accessibility_df %>%
+  select(result_score_breakdown, result_features) %>%
+  unnest_wider(result_score_breakdown, names_sep = "_", names_repair = "unique") %>%
+  unnest_wider(result_features, names_sep = "_", names_repair = "unique")
+
+head(df_unlisted)
+
+further_df <- df_unlisted %>%
+  select(result_score_breakdown_total_score, result_score_breakdown_score_mrt, result_score_breakdown_score_bus, result_score_breakdown_walkability_score, result_score_breakdown_congestion_score, result_features_num_mrt_stations, result_features_num_unique_mrt_lines, result_features_num_bus_stops, result_features_num_unique_bus_services, result_features_avg_dist_mrt, result_features_avg_dist_bus, result_features_mrt_crowd_AM_peak, result_features_mrt_crowd_AM_offpeak, result_features_mrt_crowd_PM_offpeak, result_features_mrt_crowd_PM_peak, result_features_bus_volume_AM_peak, result_features_bus_volume_AM_offpeak, result_features_bus_volume_PM_peak, result_features_bus_volume_PM_offpeak) %>%
+  filter(pmap_lgl(across(result_features_bus_volume_AM_offpeak:result_features_mrt_crowd_PM_offpeak), function(...) {
+    values <- list(...)
+    # For each cell in this row, get its length and check all are 1.
+    all(vapply(values, length, numeric(1)) == 1)
+  })) %>%
+  mutate(
+    across(result_features_bus_volume_AM_peak:result_features_bus_volume_PM_offpeak, 
+           ~ map_dbl(.x, ~ .x[[1]]))
+  )
+
+head(further_df)
+
+average <- further_df %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  mutate(
+    searchval = "Average",
+    road_name = "Average"
+  )
+average_long <- average %>%
+  pivot_longer(
+    cols = -c(searchval, road_name),  # keep these columns as identifiers
+    names_to = "Measure",
+    values_to = "Average"
+  )
+
+head(average)
+```
+
+### Plotting on scatterplot graph
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Pivot MRT crowd related columns into long format.
+mrt_crowd_long <- further_df %>%
+  select(result_features_mrt_crowd_AM_peak, 
+         result_features_mrt_crowd_AM_offpeak, 
+         result_features_mrt_crowd_PM_peak, 
+         result_features_mrt_crowd_PM_offpeak) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "time_period",
+    values_to = "mrt_crowd"
+  )
+
+# Plot a histogram for each MRT crowd variable in separate panels.
+ggplot(mrt_crowd_long, aes(x = mrt_crowd)) +
+  geom_histogram(bins = 10, fill = "skyblue", color = "black") +
+  facet_wrap(~ time_period, scales = "free_x") +
+  labs(
+    title = "Distribution of MRT Crowd Levels by Time Period",
+    x = "MRT Crowd Level",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+
+bus_volume_long <- further_df %>%
+  select(result_features_bus_volume_AM_peak, 
+         result_features_bus_volume_AM_offpeak, 
+         result_features_bus_volume_PM_peak, 
+         result_features_bus_volume_PM_offpeak) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "time_period",
+    values_to = "bus_volume"
+  )
+
+# Plot histograms for bus volumes
+ggplot(bus_volume_long, aes(x = bus_volume)) +
+  geom_histogram(bins = 10, fill = "salmon", color = "black") +
+  facet_wrap(~ time_period, scales = "free_x") +
+  labs(
+    title = "Distribution of Bus Volumes by Time Period",
+    x = "Bus Volume",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+```
+```{r}
+
+# Compute Q1 (25th percentile), Q2 (median) and Q3 (75th percentile) for bus_volume in each time period.
+busVol_quantile_summary <- bus_volume_long %>%
+  group_by(time_period) %>%
+  summarise(
+    Q1 = quantile(bus_volume, probs = 0.25, na.rm = TRUE),
+    Q2 = quantile(bus_volume, probs = 0.5, na.rm = TRUE),
+    Q3 = quantile(bus_volume, probs = 0.75, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(Q1, Q2, Q3),
+    names_to = "quartile",
+    values_to = "bus_volume_value"
+  )
+
+print(busVol_quantile_summary)
+
+```
+
+
+```{r}
+# Prepare Bus data: number of bus stops and unique bus services.
+bus_data <- further_df %>%
+  select(result_features_num_bus_stops, result_features_num_unique_bus_services) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "variable",
+    values_to = "count"
+  )
+
+# Plot histograms for Bus metrics side by side.
+ggplot(bus_data, aes(x = count)) +
+  geom_histogram(bins = 10, fill = "darkseagreen", color = "black") +
+  facet_wrap(~ variable, ncol = 2, scales = "free_x") +
+  scale_x_continuous(breaks = seq(min(bus_data$count, na.rm = TRUE),
+                                  max(bus_data$count, na.rm = TRUE),
+                                  5),
+                     expand = c(0, 0)) +
+  labs(title = "Distribution of Bus Metrics",
+       x = "Count",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 0, hjust = 1))
+```
+
+```{r}
+
+# Compute Q1 (25th percentile), Q2 (median) and Q3 (75th percentile) for count in each time period.
+busStopService_quantile_summary <- bus_data %>%
+  group_by(variable) %>%
+  summarise(
+    Q1 = quantile(count, probs = 0.25, na.rm = TRUE),
+    Q2 = quantile(count, probs = 0.5, na.rm = TRUE),
+    Q3 = quantile(count, probs = 0.75, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(Q1, Q2, Q3),
+    names_to = "quartile",
+    values_to = "count"
+  )
+
+print(busStopService_quantile_summary)
+
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Prepare MRT data: unique MRT lines and MRT stations.
+mrt_data <- further_df %>%
+  select(result_features_num_unique_mrt_lines, result_features_num_mrt_stations) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "variable",
+    values_to = "count"
+  )
+
+# Plot histograms for MRT metrics side by side.
+ggplot(mrt_data, aes(x = count)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "black") +
+  facet_wrap(~ variable, ncol = 2, scales = "free_x") +
+  scale_x_continuous(breaks = seq(min(mrt_data$count, na.rm = TRUE),
+                                  max(mrt_data$count, na.rm = TRUE),
+                                  1),
+                     expand = c(0, 0)) +
+  labs(title = "Distribution of MRT Metrics",
+       x = "Count",
+       y = "Frequency") +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 0, hjust = 1))
+```
+
+```{r}
+
+# Compute Q1 (25th percentile), Q2 (median) and Q3 (75th percentile) for count in each time period.
+mrt_quantile_summary <- mrt_data %>%
+  group_by(variable) %>%
+  summarise(
+    Q1 = quantile(count, probs = 0.25, na.rm = TRUE),
+    Q2 = quantile(count, probs = 0.5, na.rm = TRUE),
+    Q3 = quantile(count, probs = 0.75, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(Q1, Q2, Q3),
+    names_to = "quartile",
+    values_to = "count"
+  )
+
+print(mrt_quantile_summary)
+```
+

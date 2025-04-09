@@ -194,7 +194,7 @@ shinyUI(
                  selectInput("t3_bto_c", "Select BTO C:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
                  selectInput("t3_bto_d", "Select BTO D:", choices = c("Select a BTO Project" = "", upcoming_bto$label)),
                  
-                 textInput("t3_destination_postal", "Enter Destination Postal Code:", placeholder = "e.g., 123456"),
+                 textInput("t3_destination_postal", "Enter Destination Postal Code:", placeholder = "e.g 123456"),
                  
                  tags$div(
                    class = "form-group",

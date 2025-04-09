@@ -1,121 +1,3 @@
-get_coordinates_from_postal <- function(postal_code) {
-  # Authenticate with OneMap API
-  auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
-  email <- "loowenwen1314@gmail.com"
-  password <- "sochex-6jobge-fomsYb"
-  
-  auth_body <- list(email = email, password = password)
-  
-  auth_response <- POST(
-    url = auth_url,
-    body = auth_body,
-    encode = "json"
-  )
-  
-  if (status_code(auth_response) != 200) {
-    stop(paste("Authentication failed with status:", status_code(auth_response)))
-  }
-  
-  # Get token from response
-  token <- content(auth_response, as = "parsed")$access_token
-  
-  # Search API endpoint
-  base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
-  
-  # Construct request URL
-  request_url <- paste0(base_url, 
-                        "?searchVal=", postal_code,
-                        "&returnGeom=Y",
-                        "&getAddrDetails=Y")
-  
-  # Make API request
-  search_response <- GET(
-    url = request_url,
-    add_headers(Authorization = token)
-  )
-  
-  if (status_code(search_response) != 200) {
-    stop(paste("Search failed with status:", status_code(search_response)))
-  }
-  
-  # Parse response
-  result <- content(search_response, as = "text", encoding = "UTF-8")
-  data <- fromJSON(result)
-  
-  if (data$found == 0) {
-    stop("No results found for this postal code")
-  }
-  
-  # Extract first result (most relevant)
-  first_result <- data$results[1, ]
-  
-  # Format as "lat,long" string
-  coords_string <- paste0(first_result$LATITUDE, ",", first_result$LONGITUDE)
-  
-  return(coords_string)
-}
-
-
-
-#convert postal to lat and long
-get_coordinates_from_postal <- function(postal_code) {
-  # Authenticate with OneMap API
-  auth_url <- "https://www.onemap.gov.sg/api/auth/post/getToken"
-  email <- "loowenwen1314@gmail.com"
-  password <- "sochex-6jobge-fomsYb"
-  
-  auth_body <- list(email = email, password = password)
-  
-  auth_response <- POST(
-    url = auth_url,
-    body = auth_body,
-    encode = "json"
-  )
-  
-  if (status_code(auth_response) != 200) {
-    stop(paste("Authentication failed with status:", status_code(auth_response)))
-  }
-  
-  # Get token from response
-  token <- content(auth_response, as = "parsed")$access_token
-  
-  # Search API endpoint
-  base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
-  
-  # Construct request URL
-  request_url <- paste0(base_url, 
-                        "?searchVal=", postal_code,
-                        "&returnGeom=Y",
-                        "&getAddrDetails=Y")
-  
-  # Make API request
-  search_response <- GET(
-    url = request_url,
-    add_headers(Authorization = token)
-  )
-  
-  if (status_code(search_response) != 200) {
-    stop(paste("Search failed with status:", status_code(search_response)))
-  }
-  
-  # Parse response
-  result <- content(search_response, as = "text", encoding = "UTF-8")
-  data <- fromJSON(result)
-  
-  if (data$found == 0) {
-    stop("No results found for this postal code")
-  }
-  
-  # Extract first result (most relevant)
-  first_result <- data$results[1, ]
-  
-  # Format as "lat,long" string
-  coords_string <- paste0(first_result$LATITUDE, ",", first_result$LONGITUDE)
-  
-  return(coords_string)
-}
-
-
 RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                              public = list(
                                email = NULL,
@@ -123,15 +5,17 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                token = NULL,
                
                                
-                               initialize = function(email, password) {
+                               initialize = function(email = "loowenwen1314@gmail.com", 
+                                                     password = "sochex-6jobge-fomsYb") {
                                  self$email <- email
                                  self$password <- password
-                                 self$token <- private$get_auth_token()
+                                 self$token <- get_onemap_token()
                          
                                },
                                
-                               get_route_data = function(start, end, routeType = "pt", date, time_period, 
+                               get_route_data = function(start, end, date = "03-24-2025", time_period, routeType = "pt", 
                                                          mode = "TRANSIT", maxWalkDistance, numItineraries = 3) {
+                                 
                                  
                                  # Define time periods and corresponding representative times
                                  time_periods <- list(
@@ -330,6 +214,16 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  lapply(route_sequences, fix_single_route)
                                },
                                
+                               extract_route_metrics = function(itinerary) {
+                                 tibble(
+                                   duration = itinerary$duration / 60, # Convert to minutes
+                                   walkTime = itinerary$walkTime / 60,
+                                   transitTime = itinerary$transitTime / 60,
+                                   waitingTime = itinerary$waitingTime / 60,
+                                   transfers = itinerary$transfers
+                                 )
+                               },
+                               
                                #transport score
                                combined_transport_efficiency = function(routes) {
                                  
@@ -397,12 +291,12 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                
                                #robustness score
                                calculate_robustness_score = function(route_sequences, routes) {
-                                 # Component 1: Route Independence (0-40 points)
+                                 #Component 1: Route Independence (0-40 points)
                                  transport_nodes <- lapply(route_sequences, function(x) {
                                    x[!x %in% c("Origin", "Destination")] 
                                  })
                                  
-                                 # Calculate overlap between all route pairs
+                                  #Calculate overlap between all route pairs
                                  route_pairs <- combn(length(transport_nodes), 2, simplify = FALSE)
                                  overlap_scores <- sapply(route_pairs, function(pair) {
                                    length(intersect(transport_nodes[[pair[1]]], transport_nodes[[pair[2]]]))
@@ -434,7 +328,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  
                                  # Sum components (automatically capped at 100)
                                  robustness_score <- min(100, 
-                                                         route_independence + 
+                                                         #route_independence + 
                                                            mode_diversity + 
                                                            hybrid_bonus + 
                                                            failure_resistance)
@@ -442,7 +336,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  return(round(robustness_score))
                                },
                                
-                               calculate_route_options_service_quality = function(routes, time_period, freq_data = all_bus_services_frequencies) {
+                               calculate_route_options_service_quality = function(routes, time_period, freq_data = bus_frequencies) {
                                  
                                  # Map your time periods to the analyzer's time periods
                                  analyzer_period <- switch(time_period,
@@ -530,11 +424,13 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                calculate_rqs = function(start, end, date, time_period, maxWalkDistance = 1000,
                                                          weights = c(transport = 0.25, comfort = 0.25, 
                                                           robustness = 0.25, service = 0.25)) {
-                               
+                                 
+                                 end_coord <- get_coordinates_from_postal(end)
+                                 
                                # Get route data with all required parameters
                                  routes <- self$get_route_data(
                                    start = start,
-                                   end = end,
+                                   end = end_coord,
                                    date = date,
                                    time_period = time_period,
                                    maxWalkDistance = maxWalkDistance
@@ -553,7 +449,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      transport = round(self$combined_transport_efficiency(routes)),
                                      comfort = round(self$calculate_comfort_score(routes_metrics)),
                                      robustness = self$calculate_robustness_score(fixed_sequences, routes),
-                                     service = self$calculate_route_options_service_quality(routes, time_period)
+                                     service = self$calculate_route_options_service_quality(routes, time_period, freq_data = bus_frequencies)
                                      
                                     
                                    )
@@ -565,54 +461,10 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  # Return results
                                  list(
                                    rqs = rqs,
-                                   components = scores,
-                                   weights = weights,
-                                   weighted_scores = weighted_scores
+                                   components = scores
                                  )
-                             },
-                               
-                               
-                               
-                               
-                               calculate_multiple_rqs = function(end, date, time_period, maxWalkDistance = 1000,
-                                                                 weights = c(transport = 0.25, comfort = 0.25, 
-                                                                             robustness = 0.25, service = 0.25), starts) {
+                             }),
                                  
-                                 # Process all start points
-                                 start_coords <- starts
-                                 end_coord <- get_coordinates_from_postal(end)
-                                 
-                                 # Calculate RQS for each start point
-                                 results <- lapply(start_coords, function(start) {
-                                   self$calculate_rqs(
-                                     start = start,
-                                     end = end_coord,
-                                     date = date,
-                                     time_period = time_period,
-                                     maxWalkDistance = maxWalkDistance,
-                                     weights = weights
-                                   )
-                                 })
-                                 
-                                 # Create summary table
-                                 summary_table <- data.frame(
-                                   Start = upcoming_bto$town,
-                                   RQS = sapply(results, function(x) x$rqs),
-                                   Transport = sapply(results, function(x) x$components["transport"]),
-                                   Comfort = sapply(results, function(x) x$components["comfort"]),
-                                   Robustness = sapply(results, function(x) x$components["robustness"]),
-                                   Service = sapply(results, function(x) x$components["service"]),
-                                   stringsAsFactors = FALSE
-                                 )
-                                 
-                                 
-                                 # Return both detailed results and summary
-                                 list(
-                                   all_results = results,
-                                   summary = summary_table
-                                 )
-                               }
-                             ),
                              
                              private = list(
                                get_auth_token = function() {
@@ -631,38 +483,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                }
                              )
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                                                     
 
 
 

@@ -346,10 +346,7 @@ shinyServer(function(input, output, session) {
   # ==== TAB 3: Comparing BTO Estates ====
   
   # Initialize route analyzer
-  route_analyzer <- RouteAnalyzer$new(
-    email = "loowenwen1314@gmail.com",
-    password = "sochex-6jobge-fomsYb"
-  )
+  route_analyzer <- RouteAnalyzer$new()
   
   # Store results
   rqs_results <- reactiveValues(
@@ -357,6 +354,13 @@ shinyServer(function(input, output, session) {
     b = NULL,
     c = NULL,
     d = NULL
+  )
+  
+  rqs_radar_data <- reactiveValues(
+    x = NULL,
+    y = NULL,
+    z = NULL,
+    w = NULL
   )
   
   # Map UI time periods to RQS format
@@ -374,29 +378,9 @@ shinyServer(function(input, output, session) {
     req(bto_label, upcoming_bto)
     upcoming_bto %>% 
       filter(label == bto_label) %>% 
-      pull(coordinates)
+      pull(Start)
   }
   
-  # Calculate RQS for a BTO
-  calculate_single_rqs <- function(bto_label) {
-    req(input$t3_destination_postal, bto_label)
-    
-    bto_coords <- get_bto_coords(bto_label)
-    dest_postal <- input$t3_destination_postal
-    
-    tryCatch({
-      result <- route_analyzer$calculate_multiple_rqs(
-        end = dest_postal,
-        date = "03-24-2025",
-        time_period = rqs_time_period(),
-        starts = bto_coords
-      )
-      return(result$summary)
-    }, error = function(e) {
-      showNotification(paste("Error calculating RQS:", e$message), type = "error")
-      return(NULL)
-    })
-  }
   
   # Handle comparison button click
   observeEvent(input$t3_get_comparison, {
@@ -416,44 +400,90 @@ shinyServer(function(input, output, session) {
     }
     
     # Calculate for each selected BTO
-    if (!is.null(input$t3_bto_a)) rqs_results$a <- calculate_single_rqs(input$t3_bto_a)
-    if (!is.null(input$t3_bto_b)) rqs_results$b <- calculate_single_rqs(input$t3_bto_b)
-    if (!is.null(input$t3_bto_c)) rqs_results$c <- calculate_single_rqs(input$t3_bto_c)
-    if (!is.null(input$t3_bto_d)) rqs_results$d <- calculate_single_rqs(input$t3_bto_d)
+    if (!is.null(input$t3_bto_a)) {
+      bto_coords <- get_bto_coords(input$t3_bto_a)
+      results <- route_analyzer$calculate_rqs(
+        start = bto_coords,
+        end = input$t3_destination_postal,
+        date = "03-24-2025",
+        time_period = rqs_time_period()
+      )
+      rqs_radar_data$x <- results$components
+      rqs_results$a <- results$rqs
+    }
+    
+    if (!is.null(input$t3_bto_b)) {
+      bto_coords <- get_bto_coords(input$t3_bto_b)
+      results <- route_analyzer$calculate_rqs(
+        start = bto_coords,
+        end = input$t3_destination_postal,
+        date = "03-24-2025",
+        time_period = rqs_time_period()
+      )
+      rqs_radar_data$y <- results$components
+      rqs_results$b <- results$rqs
+    }
+    
+    if (!is.null(input$t3_bto_c)) {
+      bto_coords <- get_bto_coords(input$t3_bto_c)
+      results <- route_analyzer$calculate_rqs(
+        start = bto_coords,
+        end = input$t3_destination_postal,
+        date = "03-24-2025",
+        time_period = rqs_time_period()
+      )
+      rqs_radar_data$z <- results$components
+      rqs_results$c <- results$rqs
+    }
+    
+    if (!is.null(input$t3_bto_d)) {
+      bto_coords <- get_bto_coords(input$t3_bto_d)
+      results <- route_analyzer$calculate_rqs(
+        start = bto_coords,
+        end = input$t3_destination_postal,
+        date = "03-24-2025",
+        time_period = rqs_time_period()
+      )
+      rqs_radar_data$w <- results$components
+      rqs_results$d <- results$rqs
+    }
     
   })
   
   # Render radar charts
   output$t3_radar_a <- renderPlotly({
-    req(rqs_results$a)
-    create_radar_chart(rqs_results$a)
+    req(rqs_radar_data$x)
+    create_radar_chart(rqs_radar_data$x)
   })
   
   output$t3_radar_b <- renderPlotly({
-    req(rqs_results$b)
-    create_radar_chart(rqs_results$b)
+    req(rqs_radar_data$y)
+    create_radar_chart(rqs_radar_data$y)
   })
   
   output$t3_radar_c <- renderPlotly({
-    req(rqs_results$c)
-    create_radar_chart(rqs_results$c)
+    req(rqs_radar_data$z)
+    create_radar_chart(rqs_radar_data$z)
   })
   
   output$t3_radar_d <- renderPlotly({
-    req(rqs_results$d)
-    create_radar_chart(rqs_results$d)
+    req(rqs_radar_data$w)
+    create_radar_chart(rqs_radar_data$w)
   })
   
   # Radar chart creation function
   create_radar_chart <- function(rqs_data) {
     plot_ly(
       type = 'scatterpolar',
-      r = c(rqs_data$Transport, rqs_data$Comfort, 
-            rqs_data$Robustness, rqs_data$Service, rqs_data$Transport),
+      r = c(as.numeric(rqs_data["transport"]), 
+            as.numeric(rqs_data["comfort"]), 
+            as.numeric(rqs_data["robustness"]), 
+            as.numeric(rqs_data["service"]), 
+            as.numeric(rqs_data["transport"])),
       theta = c("Trip Speed", "Ride Comfort", "Route Reliability", 
                 "Transport Frequency", "Trip Speed"),
       fill = 'toself',
-      name = rqs_data$Start
+      name = "BTO"
     ) %>%
       layout(
         polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))),

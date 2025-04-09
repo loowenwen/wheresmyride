@@ -357,7 +357,7 @@ shinyServer(function(input, output, session) {
   # Initialize route analyzer
   route_analyzer <- RouteAnalyzer$new()
   
-  # Store results
+  #Create reactive values
   rqs_results <- reactiveValues(
     a = NULL,
     b = NULL,
@@ -371,6 +371,16 @@ shinyServer(function(input, output, session) {
     z = NULL,
     w = NULL
   )
+  
+  rqs_weights <- reactive({
+    total <- input$t3_comfort + input$t3_speed + input$t3_frequency + input$t3_reliability
+    c(
+      comfort = input$t3_comfort / total,
+      speed = input$t3_speed / total,
+      frequency = input$t3_frequency / total,
+      reliability = input$t3_reliability / total
+    )
+  })
   
   # Map UI time periods to RQS format
   rqs_time_period <- reactive({
@@ -415,7 +425,9 @@ shinyServer(function(input, output, session) {
         start = bto_coords,
         end = input$t3_destination_postal,
         date = "03-24-2025",
-        time_period = rqs_time_period()
+        time_period = rqs_time_period(),
+        maxWalkDistance = 1000,
+        weights = rqs_weights()
       )
       rqs_radar_data$x <- results$components
       rqs_results$a <- results$rqs
@@ -427,7 +439,9 @@ shinyServer(function(input, output, session) {
         start = bto_coords,
         end = input$t3_destination_postal,
         date = "03-24-2025",
-        time_period = rqs_time_period()
+        maxWalkDistance = 1000,
+        time_period = rqs_time_period(),
+        weights = rqs_weights()
       )
       rqs_radar_data$y <- results$components
       rqs_results$b <- results$rqs
@@ -439,7 +453,9 @@ shinyServer(function(input, output, session) {
         start = bto_coords,
         end = input$t3_destination_postal,
         date = "03-24-2025",
-        time_period = rqs_time_period()
+        time_period = rqs_time_period(),
+        maxWalkDistance = 1000,
+        weights = rqs_weights()
       )
       rqs_radar_data$z <- results$components
       rqs_results$c <- results$rqs
@@ -451,7 +467,9 @@ shinyServer(function(input, output, session) {
         start = bto_coords,
         end = input$t3_destination_postal,
         date = "03-24-2025",
-        time_period = rqs_time_period()
+        time_period = rqs_time_period(),
+        maxWalkDistance = 1000,
+        weights = rqs_weights()
       )
       rqs_radar_data$w <- results$components
       rqs_results$d <- results$rqs
@@ -503,68 +521,26 @@ shinyServer(function(input, output, session) {
   
   # --- Render Radar Chart Individual Score
   output$t3_radar_a_score <- renderUI({
-    # dummy score value, replace this with your actual logic later
-    dummy_score <- round(runif(1, 60, 95), 1)  # Random score between 60 and 95
-    h2(dummy_score, style = "font-weight: bold")
+    req(rqs_results$a)
+    h2(round(rqs_results$a, 1), style = "font-weight: bold")
   })
   
+  
   output$t3_radar_b_score <- renderUI({
-    # dummy score value, replace this with your actual logic later
-    dummy_score <- round(runif(1, 60, 95), 1)  # Random score between 60 and 95
-    h2(dummy_score, style = "font-weight: bold")
+    req(rqs_results$b)
+    h2(round(rqs_results$b, 1), style = "font-weight: bold")
   })
   
   output$t3_radar_c_score <- renderUI({
-    # dummy score value, replace this with your actual logic later
-    dummy_score <- round(runif(1, 60, 95), 1)  # Random score between 60 and 95
-    h2(dummy_score, style = "font-weight: bold")
+    req(rqs_results$c)
+    h2(round(rqs_results$c, 1), style = "font-weight: bold")
   })
   
   output$t3_radar_d_score <- renderUI({
-    # dummy score value, replace this with your actual logic later
-    dummy_score <- round(runif(1, 60, 95), 1)  # Random score between 60 and 95
-    h2(dummy_score, style = "font-weight: bold")
+    req(rqs_results$d)
+    h2(round(rqs_results$d, 1), style = "font-weight: bold")
   })
   
-  # render_radar_chart_by_coords <- function(coord_string) {
-  #   bto_scores <- rqs_summary %>%
-  #     filter(Start == coord_string)
-  #   
-  #   if (nrow(bto_scores) == 0) return(NULL)
-  #   
-  #   plot_ly(
-  #     type = 'scatterpolar',
-  #     r = c(bto_scores$Transport, bto_scores$Comfort, bto_scores$Robustness, bto_scores$Service, bto_scores$Transport),
-  #     theta = c("Trip Speed", "Ride Comfort", "Route Reliability", "Transport Frequency", "Trip Speed"),
-  #     fill = 'toself',
-  #     name = coord_string
-  #   ) %>%
-  #     layout(
-  #       polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))),
-  #       showlegend = FALSE
-  #     )
-  # }
-  # 
-  # 
-  # output$radar_a <- renderPlotly({
-  #   req(input$bto_a_postal)
-  #   render_radar_chart_by_coords(input$bto_a_postal)
-  # })
-  # 
-  # output$radar_b <- renderPlotly({
-  #   req(input$bto_b_postal)
-  #   render_radar_chart_by_coords(input$bto_b_postal)
-  # })
-  # 
-  # output$radar_c <- renderPlotly({
-  #   req(input$bto_c_postal)
-  #   render_radar_chart_by_coords(input$bto_c_postal)
-  # })
-  # 
-  # output$radar_d <- renderPlotly({
-  #   req(input$bto_d_postal)
-  #   render_radar_chart_by_coords(input$bto_d_postal)
-  # })
   
 
   # ==== TAB 4: Accessibility Dashboard ====

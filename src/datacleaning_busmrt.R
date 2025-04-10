@@ -186,9 +186,18 @@ bus_with_planning %>%
 bus_with_planning <- bus_with_planning %>%
   filter(!is.na(pln_area_n))
 
+# clean bus_route.rds (code from mili)
+bus_routes <- readRDS("data/RDS Files/bus_routes.rds")
+
+bus_stop_with_service_no <- bus_routes %>%
+  select(c(1:5)) %>%
+  group_by(BusStopCode) %>%
+  summarise(
+    services = paste(sort(unique(ServiceNo)), collapse = ", ")
+  )
+
+bus_with_planning <- bus_with_planning %>%
+  left_join(bus_stop_with_service_no, by = "BusStopCode")
+
 # save as RDS
 saveRDS(bus_with_planning, file = "data/RDS Files/bus_with_planning.rds")
-
-
-
-

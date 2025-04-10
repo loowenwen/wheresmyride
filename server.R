@@ -254,7 +254,7 @@ shinyServer(function(input, output, session) {
     
     map <- map %>%
       addLayersControl(
-        overlayGroups = c("Planning Area Density", "MRT Station Markers", "MRT Line Network"),
+        overlayGroups = c("Planning Area Density", "MRT Line Network", "MRT Station Markers"),
         options = layersControlOptions(collapsed = FALSE)
       ) %>%
       addLegend(
@@ -301,6 +301,22 @@ shinyServer(function(input, output, session) {
     )
   })
   
+  # --- Reactive ---
+  show_all_flag <- reactiveVal(FALSE)
+  
+  observeEvent(input$show_all_bus, {
+    show_all_flag(TRUE)
+    updateCheckboxGroupInput(
+      session,
+      inputId = "bus_planning_area",
+      selected = character(0)  # sets it to empty
+    )
+  })
+  
+  observeEvent(input$bus_planning_area, {
+    show_all_flag(FALSE)
+  })
+  
   output$bus_stop_density_map <- renderLeaflet({
     if (input$mapType != "Bus Stops") return(NULL)
     
@@ -321,27 +337,53 @@ shinyServer(function(input, output, session) {
           bus_stop_density$rank[match(pln_area_n, bus_stop_density$pln_area_n)], "<br>"
         ),
         label = ~pln_area_n,
-        layerId = ~pln_area_n
+        layerId = ~pln_area_n,
+        group = "Planning Area Density"
       )
     
-    # filter and display bus stops based on selected planning areas
-    if (length(input$bus_planning_area) > 0) {
-      bus_data_filtered <- bus_with_planning %>%
-        filter(pln_area_n %in% input$bus_planning_area)
-      
+    bus_icon <- awesomeIcons(
+      icon = "bus", iconColor = "white", markerColor = "blue", library = "fa"
+    )
+    
+    filtered_data <- if (show_all_flag()) {
+      bus_with_planning
+    } else if (length(input$bus_planning_area) > 0) {
+      subset(bus_with_planning, pln_area_n %in% input$bus_planning_area)
+    } else {
+      NULL
+    }
+    
+    if (!is.null(filtered_data) && nrow(filtered_data) > 0) {
       map <- map %>%
-        addMarkers(
-          data = bus_data_filtered,
+        addAwesomeMarkers(
+          data = filtered_data,
           lat = ~Latitude,
           lng = ~Longitude,
+          icon = bus_icon,
           popup = ~paste0(
             "<strong>", Description, "</strong><br>",
             "Bus Stop Code: ", BusStopCode, "<br>",
-            "Road Name: ", RoadName
-          )
+            "Road Name: ", RoadName, "<br>",
+            "Service Number: ", services
+          ),
+          clusterOptions = markerClusterOptions(),
+          group = "Bus Stop Markers"
         )
     }
-    map
+    
+    map <- map %>%
+      addLayersControl(
+        overlayGroups = c("Planning Area Density", "Bus Stop Markers"),
+        options = layersControlOptions(collapsed = FALSE)
+      ) %>%
+      addLegend(
+        position = "bottomright",
+        pal = palette,
+        values = bus_stop_density$n,
+        title = "Bus Stop Count",
+        opacity = 0.7
+      )
+    return(map)
   })
   
   

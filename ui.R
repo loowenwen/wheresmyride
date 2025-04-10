@@ -96,10 +96,15 @@ shinyUI(
 
                      conditionalPanel(
                        condition = "input.mapType == 'Bus Stops'",
-                       checkboxGroupInput("bus_planning_area", "Show All Bus Stops in", 
-                                          choices = sort(unique(bus_with_planning$pln_area_n)),
-                                          selected = NULL
-                       )
+                       tags$div(
+                         style = "column-count: 2; -moz-column-count: 2; -webkit-column-count: 2;",
+                         checkboxGroupInput(
+                           "bus_planning_area", "Show All Bus Stops in",
+                           choices = sort(unique(bus_with_planning$pln_area_n)),
+                           selected = NULL
+                         )
+                       ),
+                       actionButton("show_all_bus", "Show All Bus Stops")
                      )
                    ),
                    

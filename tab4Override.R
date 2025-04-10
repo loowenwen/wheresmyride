@@ -68,12 +68,14 @@ observeEvent(input$t4_get_score, {
     mrt_df <- result$features$mrt_stop_distances %>%
       rename(Description = mrt_station, `Distance (m)` = dist) %>%
       mutate(Type = "MRT") %>%
-      select(Type, Description, `Distance (m)`)
+      select(Type, Description, `Distance (m)`) %>%
+      filter(`Distance (m)` <= 500)
     
     bus_df <- result$features$bus_stop_distances %>%
       rename(`Distance (m)` = dist) %>%
       mutate(Type = "Bus") %>%
-      select(Type, Description, `Distance (m)`)
+      select(Type, Description, `Distance (m)`) %>%
+      filter(`Distance (m)` <= 500)
     
     accessibility_scores$nearby_stops <- bind_rows(mrt_df, bus_df)
     
@@ -119,7 +121,7 @@ observeEvent(input$t4_recalculate, {
       weight_walk = input$t4_walk,
       weight_congestion = input$t4_congestion,
       selected_time_slots = time_slots,
-      distance = input$t4_nearby_radius
+      distance = as.numeric(input$t4_nearby_radius)
     )
     
     breakdown <- result$score_breakdown
@@ -138,12 +140,14 @@ observeEvent(input$t4_recalculate, {
     mrt_df <- result$features$mrt_stop_distances %>%
       rename(Description = mrt_station, `Distance (m)` = dist) %>%
       mutate(Type = "MRT") %>%
-      select(Type, Description, `Distance (m)`)
+      select(Type, Description, `Distance (m)`) %>%
+      filter(`Distance (m)` <= 500)
     
     bus_df <- result$features$bus_stop_distances %>%
       rename(`Distance (m)` = dist) %>%
       mutate(Type = "Bus") %>%
-      select(Type, Description, `Distance (m)`)
+      select(Type, Description, `Distance (m)`) %>%
+      filter(`Distance (m)` <= 500)
     
     accessibility_scores$nearby_stops <- bind_rows(mrt_df, bus_df)
     

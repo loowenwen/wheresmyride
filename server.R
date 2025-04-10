@@ -798,7 +798,7 @@ shinyServer(function(input, output, session) {
     score <- get_scores()$overall
     color <- case_when(
       score >= 80 ~ "text-success",
-      score >= 60 ~ "text-warning",
+      score >= 40 ~ "text-warning",
       TRUE ~ "text-danger"
     )
     h1(score, class = color, style = "font-weight: bold")
@@ -823,28 +823,28 @@ shinyServer(function(input, output, session) {
   output$t4_mrt_score <- renderUI({
     if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
     score <- get_scores()$mrt
-    color <- case_when(score >= 80 ~ "text-success", score >= 60 ~ "text-warning", TRUE ~ "text-danger")
+    color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
     h2(score, class = color, style = "font-weight: bold")
   })
   
   output$t4_bus_score <- renderUI({
     if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
     score <- get_scores()$bus
-    color <- case_when(score >= 80 ~ "text-success", score >= 60 ~ "text-warning", TRUE ~ "text-danger")
+    color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
     h2(score, class = color, style = "font-weight: bold")
   })
   
   output$t4_walk_score <- renderUI({
     if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
     score <- get_scores()$walk
-    color <- case_when(score >= 80 ~ "text-success", score >= 60 ~ "text-warning", TRUE ~ "text-danger")
+    color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
     h2(score, class = color, style = "font-weight: bold")
   })
   
   output$t4_congestion_score <- renderUI({
     if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
     score <- get_scores()$congestion
-    color <- case_when(score >= 80 ~ "text-success", score >= 60 ~ "text-warning", TRUE ~ "text-danger")
+    color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
     h2(score, class = color, style = "font-weight: bold")
   })
   
@@ -867,7 +867,8 @@ shinyServer(function(input, output, session) {
     if (!initial_calculation()) {
       return(p("Enter a postal code and click 'Get Accessibility Score' to see results."))
     }
-    return(NULL)
+    return(tags$p(class = "text-muted",
+                  "Within 500 meters of your location."))
   })
 
    # --- Optionally Source Custom Logic from testServer.R ---

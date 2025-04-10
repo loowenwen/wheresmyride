@@ -61,19 +61,7 @@ engineer_features <- function(lat, lon, distance = 500) {
       daily_avg_vol = sum(TOTAL_TAP_IN_VOLUME, na.rm = TRUE) / 20,
       .groups = 'drop'
     )
-  '  
-  # Finding coordinates of all bus stops
-  bus_coords <- st_read("/data/BusStopLocation_Nov2024/BusStop.shp", quiet = TRUE) %>%
-    rename(BusStop_code = BUS_STOP_N) %>%
-    st_transform(crs = 4326) %>%
-    mutate(
-      BusStop_code = str_pad(as.character(BusStop_code), 5, "left", "0"),
-      Longitude = st_coordinates(geometry)[,1],
-      Latitude = st_coordinates(geometry)[,2]
-    ) %>%
-    st_drop_geometry()
-'
-  
+
   bus_coords <- bus_stops %>%
     mutate(BusStop_code = as.character(BusStopCode)) %>%
     st_transform(crs = 4326)
@@ -213,54 +201,103 @@ normalised_score <- function(features,
   ### Calculated based on analysis of 1000 HDB areas. Q1-3 corresponds to 0.25, 0.50, 0.750 of the score respectively.
   
   # MRT Score Helper Function
-  calc_mrt_stations_score <- function(num_stations) {
-    case_when(
-      num_stations >= 2 ~ 1,  
-      num_stations == 1 ~ 0.50,  
-      TRUE ~ 0                  
-    )
-  }
+  calc_mrt_stations_score <- function(num_stations, distance) {
+    thresholds <- switch(as.character(distance),
+                         "500" = list(max = 2, q3 = 1, q2 = 1, q1 = 1),
+                         "1000" = list(max = 4, q3 = 3, q2 = 2, q1 = 1),
+                         "1500" = list(max = 6, q3 = 5, q2 = 2, q1 = 2),
+                         "2000" = list(max = 6, q3 = 5, q2 = 2, q1 = 2),
+                         list(max = 2, q3 = 1, q2 = 1, q1 = 0))
+    
+    if (num_stations >= thresholds$max) {
+      return(1)
+    } else if (num_stations >= thresholds$q3) {
+      return(0.75)
+    } else if (num_stations >= thresholds$q2) {
+      return(0.5)
+    } else if (num_stations >= thresholds$q1) {
+      return(0.25)
+      } else {
+        return(0)
+      }
+    }
   
-  calc_mrt_lines_score <- function(num_lines) {
-    case_when(
-      num_lines >= 2 ~ 1,       
-      num_lines == 1 ~ 0.50,    
-      TRUE ~ 0                 
-    )
+  calc_mrt_lines_score <- function(num_lines, distance) {
+    thresholds <- switch(as.character(distance),
+                         "500" = list(max = 2, q3 = 1, q2 = 1, q1 = 1),
+                         "1000" = list(max = 3, q3 = 2, q2 = 1, q1 = 1),
+                         "1500" = list(max = 3, q3 = 2, q2 = 1, q1 = 1),
+                         "2000" = list(max = 3, q3 = 2, q2 = 1, q1 = 1),
+                         list(max = 2, q3 = 1, q2 = 1, q1 = 0))
+    if (num_lines >= thresholds$max) {
+      return(1)
+    } else if (num_lines >= thresholds$q3) {
+      return(0.75)
+    } else if (num_lines >= thresholds$q2) {
+      return(0.5)
+    } else if (num_lines >= thresholds$q1) {
+      return(0.25)
+    } else {
+      return(0)
+    }
   }
   
   # MRT score (distance excluded)
   score_mrt <- min(1, mean(c(
-    calc_mrt_stations_score(features$num_mrt_stations),
-    calc_mrt_lines_score(features$num_unique_mrt_lines)
+    calc_mrt_stations_score(features$num_mrt_stations, features$distance_radius),
+    calc_mrt_lines_score(features$num_unique_mrt_lines, features$distance_radius)
   ))) * 100
   
 
   # Bus Score Helper Function
-  calc_bus_stops_score <- function(num_stops) {
-    case_when(
-      num_stops >= 29 ~ 1,          # max count
-      num_stops > 18 ~ 0.75,       # above Q3 threshold
-      num_stops > 14 ~ 0.50,       # between Q2 and Q3
-      num_stops > 11 ~ 0.25,       # between Q1 and Q2
-      TRUE ~ 0                   # at or below Q1
-    )
+  calc_bus_stops_score <- function(num_stops, distance) {
+    # Set thresholds by distance (update these values as needed)
+    thresholds <- switch(as.character(distance),
+                         "500"  = list(max = 29, q3 = 18, q2 = 14, q1 = 11),      # for 500m
+                         "1000" = list(max = 60, q3 = 57, q2 = 48, q1 = 43),      # current thresholds for 1000m
+                         "1500" = list(max = 120, q3 = 118, q2 = 102, q1 = 83),      # example values for 1500m
+                         "2000" = list(max = 120, q3 = 118, q2 = 102, q1 = 83),      # example values for 2000m
+                         list(max = 29, q3 = 18, q2 = 14, q1 = 11))
+  
+    if (num_stops >= thresholds$max) {
+      return(1)
+    } else if (num_stops >= thresholds$q3) {
+      return(0.75)
+    } else if (num_stops >= thresholds$q2) {
+      return(0.50)
+    } else if (num_stops >= thresholds$q1) {  
+      return(0.25)
+    } else {
+      return(0)
+    }
   }
   
-  calc_bus_services_score <- function(num_services) {
-    case_when(
-      num_services >= 49 ~ 1,       # max count
-      num_services > 23 ~ 0.75,    # above Q3 threshold
-      num_services > 17 ~ 0.50,    # between Q2 and Q3
-      num_services > 13 ~ 0.25,    # between Q1 and Q2
-      TRUE ~ 0                   # at or below Q1
-    )
+  calc_bus_services_score <- function(num_services, distance) {
+    # Set thresholds by distance (update these values as needed)
+    thresholds <- switch(as.character(distance),
+                         "500"  = list(max = 35, q3 = 23, q2 = 17, q1 = 13),      # for 500m
+                         "1000" = list(max = 49, q3 = 40, q2 = 33, q1 = 24),      # current thresholds for 1000m
+                         "1500" = list(max = 55, q3 = 54, q2 = 45, q1 = 37),      # example values for 1500m
+                         "2000" = list(max = 55, q3 = 54, q2 = 45, q1 = 37),      # example values for 2000m
+                         list(max = 35, q3 = 23, q2 = 17, q1 = 13))
+    
+    if (num_services >= thresholds$max) {
+      return(1)
+    } else if (num_services >= thresholds$q3) {
+      return(0.75)
+    } else if (num_services >= thresholds$q2) {
+      return(0.50)
+    } else if (num_services >= thresholds$q1) {  
+      return(0.25)
+    } else {
+      return(0)
+    }
   }
   
   # Bus score (distance excluded)
   score_bus <- min(1, mean(c(
-    calc_bus_stops_score(features$num_bus_stops),
-    calc_bus_services_score(features$num_unique_bus_services)
+    calc_bus_stops_score(features$num_bus_stops, features$distance_radius),
+    calc_bus_services_score(features$num_unique_bus_services, features$distance_radius)
   ))) * 100
   
   # Walkability (distance included)

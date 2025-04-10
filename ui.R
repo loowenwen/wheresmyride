@@ -202,8 +202,53 @@ shinyUI(
                  
                  textInput("t3_destination_postal", "Enter Destination Postal Code:", placeholder = "e.g 123456"),
                  
+                 actionButton("t3_get_comparison", "Get BTO Transport Route Comparison", icon = icon("search")),
+                 
                  hr(),
                  h4(tagList(icon("gears", lib = "font-awesome"), " Customize Route Quality Score Model"), style = "font-weight: bold"),
+                 
+                 tags$h5(
+                   class = "fw-bold",
+                   tagList(
+                     "Route Quality Score Weights",
+                     HTML('&nbsp;'),  # spacing
+                     tags$i(
+                       class = "fas fa-circle-question text-muted",
+                       style = "cursor: pointer;",
+                       title = "By default, each component (Ride Comfort, Trip Speed, Transport Frequency, Route Reliabilty) contributes 25% to the overall score. You can adjust these weights based on what matters most to you.",
+                       `data-bs-toggle` = "tooltip",
+                       `data-bs-placement` = "right"
+                     )
+                   )
+                 ),
+                 helpText("You can adjust how much each factor matters to you. The app will automatically normalize the weights."),
+                 sliderInput("t3_comfort", "Ride Comfort Importance", min = 0, max = 100, value = 25),
+                 sliderInput("t3_speed", "Trip Speed Importance", min = 0, max = 100, value = 25),
+                 sliderInput("t3_frequency", "Transport Frequency Importance", min = 0, max = 100, value = 25),
+                 sliderInput("t3_reliability", "Route Reliability Importance", min = 0, max = 100, value = 25),
+                 
+                 actionButton("t3_recalculate", "Recalculate with New Settings", icon = icon("sync"))
+               ),
+               
+               mainPanel(
+                 h3(
+                   tagList(icon("chart-simple", lib = "font-awesome"), " Route Quality Score Summary"),
+                   class = "fw-bold"
+                 ),
+                 
+                 tags$p(class = "text-muted",
+                        "This score reflects the overall route quality score to your preferred destination across the different BTO location chosen."),
+                 fluidRow(
+                   column(3, h4("BTO A" , style = "font-weight: bold"), uiOutput("t3_radar_a_score")),
+                   column(3, h4("BTO B", style = "font-weight: bold"), uiOutput("t3_radar_b_score")),
+                   column(3, h4("BTO C", style = "font-weight: bold"), uiOutput("t3_radar_c_score")),
+                   column(3, h4("BTO D", style = "font-weight: bold"), uiOutput("t3_radar_d_score"))
+                 ),
+                 hr(),
+                 
+                 h3(tagList(icon("chart-pie", lib = "font-awesome"), " Visual Comparison: Radar Charts"), class = "fw-bold"),
+                 tags$p(class = "text-muted",
+                   "The radar charts below update based on your selected travel time. They give a quick visual overview of how each selected BTO fares across comfort, speed, frequency, and reliability."),
                  
                  tags$div(
                    class = "form-group",
@@ -228,74 +273,19 @@ shinyUI(
                                 selected = "AM_peak")
                  ),
                  
-                 tags$h5(
-                   class = "fw-bold",
-                   tagList(
-                     "Route Quality Score Weights",
-                     HTML('&nbsp;'),  # spacing
-                     tags$i(
-                       class = "fas fa-circle-question text-muted",
-                       style = "cursor: pointer;",
-                       title = "By default, each component (Ride Comfort, Trip Speed, Transport Frequency, Route Reliabilty) contributes 25% to the overall score. You can adjust these weights based on what matters most to you.",
-                       `data-bs-toggle` = "tooltip",
-                       `data-bs-placement` = "right"
-                     )
-                   )
-                 ),
-                 helpText("You can adjust how much each factor matters to you. The app will automatically normalize the weights."),
-                 sliderInput("t3_comfort", "Ride Comfort Importance", min = 0, max = 100, value = 25),
-                 sliderInput("t3_speed", "Trip Speed Importance", min = 0, max = 100, value = 25),
-                 sliderInput("t3_frequency", "Transport Frequency Importance", min = 0, max = 100, value = 25),
-                 sliderInput("t3_reliability", "Route Reliability Importance", min = 0, max = 100, value = 25),
-                 
-                 actionButton("t3_get_comparison", "Get BTO Transport Route Comparison", icon = icon("search"))
-               ),
-               
-               mainPanel(
-                 h3(
-                   tagList(icon("chart-simple", lib = "font-awesome"), " Route Quality Score"),
-                   class = "fw-bold"
-                 ),
-                 
-                 h5("Understanding the Route Quality Factors"),
-                 tags$ul(
-                   tags$li(
-                     icon("tachometer-alt", lib = "font-awesome"), 
-                     tags$b(" Trip Speed: "), "How fast will I get there? ",
-                     tags$span("This measures overall travel time and route efficiency, favouring options that get you to your destination quicker.")
-                   ),
-                   tags$li(
-                     icon("bus", lib = "font-awesome"),
-                     tags$b(" Ride Comfort: "), "How pleasant is the journey? ",
-                     tags$span("Considers walking time and number of transfers. Fewer changes and less walking mean higher comfort.")
-                   ),
-                   tags$li(
-                     icon("exclamation-triangle", lib = "font-awesome"),
-                     tags$b(" Route Reliability: "), "Will my commute be disrupted? ",
-                     tags$span("Evaluates backup options and mode diversity. More alternative routes and transport types improve reliability.")
-                   ),
-                   tags$li(
-                     icon("clock", lib = "font-awesome"),
-                     tags$b(" Transport Frequency: "), "How often do the buses or trains come? ",
-                     tags$span("Measures expected waiting times based on your selected travel period.")
-                   )
-                 ),
+                 actionLink("open_factors_modal", "What do these scores mean?"),
                  
                  fluidRow(
                    column(6, h4("Radar Chart: BTO A", style = "font-weight: bold"), 
-                          uiOutput("t3_radar_a_score"),
                           plotlyOutput("t3_radar_a")
                           ),
                    column(6, h4("Radar Chart: BTO B", style = "font-weight: bold"), 
-                          uiOutput("t3_radar_b_score"),
                           plotlyOutput("t3_radar_b"))
                  ),
                  fluidRow(
                    column(6, h4("Radar Chart: BTO C", style = "font-weight: bold"), 
-                          uiOutput("t3_radar_c_score"),
                           plotlyOutput("t3_radar_c")),
                    column(6, h4("Radar Chart: BTO D", style = "font-weight: bold"), 
-                          uiOutput("t3_radar_d_score"),
                           plotlyOutput("t3_radar_d"))
                  )
                )

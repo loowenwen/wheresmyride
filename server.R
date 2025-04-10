@@ -655,6 +655,37 @@ shinyServer(function(input, output, session) {
     h2(round(rqs_results$d, 1), style = "font-weight: bold")
   })
   
+  # --- More Information About Factors ---
+  observeEvent(input$open_factors_modal, {
+    showModal(modalDialog(
+      title = "Understanding the Route Quality Factors",
+      tags$ul(
+        tags$li(
+          icon("tachometer-alt", lib = "font-awesome"), 
+          tags$b(" Trip Speed: "), "How fast will I get there? ",
+          tags$span("This measures overall travel time and route efficiency, favouring options that get you to your destination quicker.")
+        ),
+        tags$li(
+          icon("bus", lib = "font-awesome"),
+          tags$b(" Ride Comfort: "), "How pleasant is the journey? ",
+          tags$span("Considers walking time and number of transfers. Fewer changes and less walking mean higher comfort.")
+        ),
+        tags$li(
+          icon("exclamation-triangle", lib = "font-awesome"),
+          tags$b(" Route Reliability: "), "Will my commute be disrupted? ",
+          tags$span("Evaluates backup options and mode diversity. More alternative routes and transport types improve reliability.")
+        ),
+        tags$li(
+          icon("clock", lib = "font-awesome"),
+          tags$b(" Transport Frequency: "), "How often do the buses or trains come? ",
+          tags$span("Measures expected waiting times based on your selected travel period.")
+        )
+      ),
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
+  })
+  
   
 
   # ==== TAB 4: Accessibility Dashboard ====

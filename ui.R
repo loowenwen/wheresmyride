@@ -90,7 +90,8 @@ shinyUI(
                        checkboxGroupInput("mrt_lines", "Select MRT Lines to Display", 
                                           choices = sort(unique(mrt_with_planning$mrt_line)),
                                           selected = NULL
-                       )
+                       ),
+                       actionButton("show_all_mrt", "Show All MRT Stations")
                      ),
 
                      conditionalPanel(

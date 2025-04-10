@@ -129,6 +129,22 @@ shinyServer(function(input, output, session) {
     )
   })
   
+  # --- Reactive Value ---
+  show_all_flag <- reactiveVal(FALSE)
+  
+  observeEvent(input$show_all_mrt, {
+    show_all_flag(TRUE)
+    updateCheckboxGroupInput(
+      session,
+      inputId = "mrt_lines",
+      selected = character(0)  # sets it to empty
+    )
+  })
+  
+  observeEvent(input$mrt_lines, {
+    show_all_flag(FALSE)
+  })
+  
   output$mrt_station_density_map <- renderLeaflet({
     if (input$mapType != "MRT Stations") return(NULL)
     
@@ -144,59 +160,115 @@ shinyServer(function(input, output, session) {
         popup = ~paste(
           "<strong>", pln_area_n, "</strong><br>",
           "Number of MRT Stations: ",
-          mrt_station_density$n[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)],"<br>",
+          mrt_station_density$n[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)], "<br>",
           "National Ranking: ",
           mrt_station_density$rank[match(planning_areas$pln_area_n, mrt_station_density$pln_area_n)]
         ),
         label = ~pln_area_n,
-        layerId = ~pln_area_n
+        layerId = ~pln_area_n,
+        group = "Planning Area Density"
       )
     
-    if (length(input$mrt_lines) > 0) {
-      line_colors <- c(
-        "BUKIT PANJANG LRT" = "#748477",
-        "CHANGI AIRPORT BRANCH LINE" = "#008040",
-        "CIRCLE LINE" = "#FFA500",
-        "CIRCLE LINE EXTENSION" = "#FFA500",
-        "NORTH-SOUTH LINE" = "#D62010",
-        "EAST-WEST LINE" = "#008040",
-        "NORTH EAST LINE" = "#8B00FF",
-        "DOWNTOWN LINE" = "#004494",
-        "THOMSON-EAST COAST LINE" = "#966F33",
-        "PUNGGOL LRT" = "#748477",
-        "SENGKANG LRT" = "#748477"
-      )
-      
-      filtered_data <- mrt_with_planning %>%
+    line_colors <- c(
+      "BUKIT PANJANG LRT" = "lightgray",
+      "CHANGI AIRPORT BRANCH LINE" = "darkgreen",
+      "CIRCLE LINE" = "orange",
+      "CIRCLE LINE EXTENSION" = "orange",
+      "NORTH-SOUTH LINE" = "red",
+      "EAST-WEST LINE" = "darkgreen",
+      "NORTH EAST LINE" = "purple",
+      "DOWNTOWN LINE" = "darkblue",
+      "THOMSON-EAST COAST LINE" = "darkred",
+      "PUNGGOL LRT" = "lightgray",
+      "SENGKANG LRT" = "lightgray"
+    )
+    
+    filtered_data <- if (show_all_flag()) {
+      mrt_with_planning
+    } else if (length(input$mrt_lines) > 0) {
+      mrt_with_planning %>%
         filter(mrt_line %in% input$mrt_lines)
-      
+    } else {
+      NULL  # if nothing selected
+    }
+    
+    if (!is.null(filtered_data) && nrow(filtered_data) > 0) {
       filtered_data <- filtered_data %>%
         mutate(marker_color = unname(line_colors[mrt_line]))
       
+      mrt_polygons_sf <- filtered_data %>%
+        select(stn_code, mrt_station, mrt_line, station_type, stn_code_combined, 
+               mrt_line_combined, pln_area_n, marker_color, geometry) %>%
+        st_as_sf(crs = 3414) %>%
+        st_transform(4326)
+      
+      mrt_lines_sf <- filtered_data %>%
+        st_as_sf(sf_column_name = "centroid", crs = 3414) %>%
+        st_transform(4326) %>%
+        mutate(
+          line_code = str_extract(stn_code, "^[A-Za-z]+"),
+          stn_num = as.numeric(str_extract(stn_code, "\\d+"))
+        ) %>%
+        arrange(line_code, stn_num) %>%
+        group_by(mrt_line, line_code, marker_color) %>%
+        summarise(
+          geometry = st_combine(centroid) %>% st_cast("LINESTRING"),
+          .groups = "drop"
+        )
+      
       map <- map %>%
-        addCircleMarkers(
+        addPolygons(
+          data = mrt_polygons_sf,
+          fillColor = ~marker_color,
+          fillOpacity = 0.5,
+          color = "black",
+          weight = 1,
+          group = "MRT Line Network"
+        ) %>%
+        addPolylines(
+          data = mrt_lines_sf,
+          color = ~marker_color,
+          weight = 4,
+          opacity = 0.7,
+          group = "MRT Line Network"
+        ) %>%
+        addAwesomeMarkers(
           data = filtered_data,
           lng = ~centroid_lon,
           lat = ~centroid_lat,
-          radius = 6,
-          color = "black",
-          fillColor = ~marker_color,
-          fillOpacity = 0.9,
-          stroke = TRUE,
-          weight = 1,
+          icon = ~awesomeIcons(
+            icon = 'train',
+            library = 'fa',
+            iconColor = 'white',
+            markerColor = marker_color
+          ),
           popup = ~paste0(
             "<strong>", mrt_station, "</strong><br>",
             "Station Code: ", stn_code, "<br>",
             "MRT Line: ", str_to_title(mrt_line), "<br>",
             "Planning Area: ", str_to_title(pln_area_n)
-          )
+          ),
+          group = "MRT Station Markers"
         )
     }
     
+    map <- map %>%
+      addLayersControl(
+        overlayGroups = c("Planning Area Density", "MRT Station Markers", "MRT Line Network"),
+        options = layersControlOptions(collapsed = FALSE)
+      ) %>%
+      addLegend(
+        position = "bottomright",
+        pal = palette,
+        values = mrt_station_density$n,
+        title = "MRT Station Count",
+        opacity = 0.7
+      )
+    
     return(map)
   })
-  
-  
+
+    
   # --- Bus Stop Density Map ---
   output$bus_density_high <- renderUI({
     if (input$mapType != "Bus Stops") return(NULL)

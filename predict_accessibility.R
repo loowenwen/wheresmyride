@@ -203,10 +203,10 @@ normalised_score <- function(features,
   # MRT Score Helper Function
   calc_mrt_stations_score <- function(num_stations, distance) {
     thresholds <- switch(as.character(distance),
-                         "500" = list(max = 2, q3 = 1, q2 = 1, q1 = 1),
+                         "500" = list(max = 2, q3 = 1, q2 = 1, q1 = 0),
                          "1000" = list(max = 4, q3 = 3, q2 = 2, q1 = 1),
                          "1500" = list(max = 6, q3 = 5, q2 = 2, q1 = 2),
-                         "2000" = list(max = 6, q3 = 5, q2 = 2, q1 = 2),
+                         "2000" = list(max = 7, q3 = 6, q2 = 3, q1 = 2),
                          list(max = 2, q3 = 1, q2 = 1, q1 = 0))
     
     if (num_stations >= thresholds$max) {
@@ -224,7 +224,7 @@ normalised_score <- function(features,
   
   calc_mrt_lines_score <- function(num_lines, distance) {
     thresholds <- switch(as.character(distance),
-                         "500" = list(max = 2, q3 = 1, q2 = 1, q1 = 1),
+                         "500" = list(max = 2, q3 = 1, q2 = 1, q1 = 0),
                          "1000" = list(max = 3, q3 = 2, q2 = 1, q1 = 1),
                          "1500" = list(max = 3, q3 = 2, q2 = 1, q1 = 1),
                          "2000" = list(max = 3, q3 = 2, q2 = 1, q1 = 1),
@@ -254,9 +254,9 @@ normalised_score <- function(features,
     # Set thresholds by distance (update these values as needed)
     thresholds <- switch(as.character(distance),
                          "500"  = list(max = 29, q3 = 18, q2 = 14, q1 = 11),      # for 500m
-                         "1000" = list(max = 60, q3 = 57, q2 = 48, q1 = 43),      # current thresholds for 1000m
+                         "1000" = list(max = 60, q3 = 57, q2 = 48, q1 = 42),      # current thresholds for 1000m
                          "1500" = list(max = 120, q3 = 118, q2 = 102, q1 = 83),      # example values for 1500m
-                         "2000" = list(max = 120, q3 = 118, q2 = 102, q1 = 83),      # example values for 2000m
+                         "2000" = list(max = 200, q3 = 195, q2 = 173, q1 = 152),      # example values for 2000m
                          list(max = 29, q3 = 18, q2 = 14, q1 = 11))
   
     if (num_stops >= thresholds$max) {
@@ -278,7 +278,7 @@ normalised_score <- function(features,
                          "500"  = list(max = 35, q3 = 23, q2 = 17, q1 = 13),      # for 500m
                          "1000" = list(max = 49, q3 = 40, q2 = 33, q1 = 24),      # current thresholds for 1000m
                          "1500" = list(max = 55, q3 = 54, q2 = 45, q1 = 37),      # example values for 1500m
-                         "2000" = list(max = 55, q3 = 54, q2 = 45, q1 = 37),      # example values for 2000m
+                         "2000" = list(max = 62, q3 = 61, q2 = 55, q1 = 45),      # example values for 2000m
                          list(max = 35, q3 = 23, q2 = 17, q1 = 13))
     
     if (num_services >= thresholds$max) {

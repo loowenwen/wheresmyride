@@ -329,7 +329,8 @@ shinyUI(
                        `data-bs-placement` = "right"
                      )
                    ),
-                   numericInput("t4_nearby_radius", label = NULL, value = 500, min = 100, max = 2000, step = 50)
+                   selectInput(inputId = "t4_nearby_radius", label = "Select Nearby Radius (meters)", 
+                               choices = c(500, 1000, 1500, 2000), selected = 500)
                  ),
                  
                  tags$div(

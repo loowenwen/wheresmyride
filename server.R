@@ -939,7 +939,7 @@ shinyServer(function(input, output, session) {
       return(p("Enter a postal code and click 'Get Accessibility Score' to see results."))
     }
     return(tags$p(class = "text-muted",
-                  "Within 500 meters of your location."))
+                  "Within 500 metres of your location."))
   })
 
    # --- Optionally Source Custom Logic from testServer.R ---

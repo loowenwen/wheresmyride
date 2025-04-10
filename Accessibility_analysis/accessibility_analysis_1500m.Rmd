@@ -1,15 +1,9 @@
 ---
 title: "Predict Accessibility Score"
 output: html_document
-params:
-  location_input: ""
-  weight_mrt: 25
-  weight_bus: 25
-  weight_walk: 25
-  weight_congestion: 25
 ---
 
-```{r setup, include=FALSE}
+```{r setup 1500m, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -36,11 +30,8 @@ library(units)
 ### Getting data on sample to find distribution of each attribute
 
 ```{r}
-
-### WARNING: RUNNING THIS CODE TAKES ~10 MIN TO RUN THROUGH ~1000 HDB LOCATIONS
-
 # --- Step 1: Extract & Source the Rmd code ---
-source("accessibility_functions.R")
+source("accessibility_functions_1500m.R")
 
 # --- Step 2: Read and Process the GeoJSON File ---
 library(sf)
@@ -110,7 +101,6 @@ ggplot(hdb_data_df, aes(x = longitude, y = latitude)) +
 
 # --- Step 4: Compute Accessibility Scores ---
 print("Checking sampled_data:")
-print(head(sampled_data))
 
 # Apply your accessibility function to each sampled building,
 # using the latitude and longitude from the centroids.
@@ -120,12 +110,9 @@ accessibility_df <- sampled_data %>%
   })) %>%
   unnest_wider(result, names_sep = "_")
 
-print(head(accessibility_df))
 
 # --- Step 5: Merge and Save the Results ---
 final_data <- cbind(sampled_data, accessibility_df)
-print(final_data)
-
 
 ```
 ### Further processing of results

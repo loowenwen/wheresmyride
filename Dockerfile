@@ -1,4 +1,4 @@
-FROM rocker/shiny:latest
+FROM rocker/geospatial:latest
 
 # Install system dependencies (safe to keep all for now)
 RUN apt-get update && apt-get install -y \

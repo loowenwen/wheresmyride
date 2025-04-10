@@ -29,7 +29,7 @@ RUN R -e "install.packages('renv', repos = 'https://cloud.r-project.org/'); renv
 COPY . /srv/shiny-server/
 
 # Set permissions
-RUN chown -R shiny:shiny /srv/shiny-server
+# RUN chown -R shiny:shiny /srv/shiny-server
 
 # Expose Shiny server port
 EXPOSE 3838

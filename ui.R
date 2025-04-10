@@ -336,7 +336,7 @@ shinyUI(
                  tags$div(
                    class = "form-group",
                    tags$label(
-                     "Nearby Radius (meters)",
+                     "Nearby Radius (metres)",
                      HTML('&nbsp;'),
                      tags$i(
                        class = "fas fa-circle-question text-muted",
@@ -346,7 +346,7 @@ shinyUI(
                        `data-bs-placement` = "right"
                      )
                    ),
-                   selectInput(inputId = "t4_nearby_radius", label = "Select Nearby Radius (meters)", 
+                   selectInput(inputId = "t4_nearby_radius", label = "Select Nearby Radius (metres)", 
                                choices = c(500, 1000, 1500, 2000), selected = 500)
                  ),
                  

@@ -209,17 +209,48 @@ normalised_score <- function(features,
                          "2000" = list(max = 7, q3 = 6, q2 = 3, q1 = 2),
                          list(max = 2, q3 = 1, q2 = 1, q1 = 0))
     
+    # If number is greater than or equal to the maximum threshold, return 1.
     if (num_stations >= thresholds$max) {
       return(1)
-    } else if (num_stations >= thresholds$q3) {
-      return(0.75)
-    } else if (num_stations >= thresholds$q2) {
-      return(0.5)
-    } else if (num_stations >= thresholds$q1) {
-      return(0.25)
+    }
+    
+    # If num_stations is at or below the lowest threshold, interpolate from 0 to 0.25.
+    # (If q1 is 0, then if there is at least one station, return 0.25.)
+    if (num_stations <= thresholds$q1) {
+      if (thresholds$q1 == 0) {
+        return(ifelse(num_stations > 0, 0.25, 0))
       } else {
-        return(0)
+        fraction <- num_stations / thresholds$q1
+        return(0.25 * fraction)
       }
+    }
+    
+    # If between q1 and q2, interpolate from 0.25 to 0.50.
+    if (num_stations <= thresholds$q2) {
+      if (thresholds$q2 == thresholds$q1) {
+        return(0.50)
+      }
+      fraction <- (num_stations - thresholds$q1) / (thresholds$q2 - thresholds$q1)
+      return(0.25 + 0.25 * fraction)
+    }
+    
+    # If between q2 and q3, interpolate from 0.50 to 0.75.
+    if (num_stations <= thresholds$q3) {
+      if (thresholds$q3 == thresholds$q2) {
+        return(0.75)
+      }
+      fraction <- (num_stations - thresholds$q2) / (thresholds$q3 - thresholds$q2)
+      return(0.50 + 0.25 * fraction)
+    }
+    
+    # If between q3 and max, interpolate from 0.75 to 1.0.
+    # (We know num_stations < thresholds$max since we already handled that case.)
+    if (thresholds$max == thresholds$q3) {
+      return(1)
+    } else {
+      fraction <- (num_stations - thresholds$q3) / (thresholds$max - thresholds$q3)
+      return(0.75 + 0.25 * fraction)
+    }
     }
   
   calc_mrt_lines_score <- function(num_lines, distance) {
@@ -229,16 +260,44 @@ normalised_score <- function(features,
                          "1500" = list(max = 3, q3 = 2, q2 = 1, q1 = 1),
                          "2000" = list(max = 3, q3 = 2, q2 = 1, q1 = 1),
                          list(max = 2, q3 = 1, q2 = 1, q1 = 0))
+    # If the number of lines is greater than or equal to the maximum threshold, cap at 1.
     if (num_lines >= thresholds$max) {
       return(1)
-    } else if (num_lines >= thresholds$q3) {
-      return(0.75)
-    } else if (num_lines >= thresholds$q2) {
-      return(0.5)
-    } else if (num_lines >= thresholds$q1) {
-      return(0.25)
-    } else {
-      return(0)
+    }
+    # If below or equal to the lowest threshold (q1), interpolate between 0 and 0.25.
+    else if (num_lines <= thresholds$q1) {
+      # If the lower bound is zero, avoid division by zero:
+      if (thresholds$q1 == 0) {
+        return(ifelse(num_lines > 0, 0.25, 0))
+      } else {
+        fraction <- num_lines / thresholds$q1
+        return(0.25 * fraction)
+      }
+    }
+    # If between q1 and q2, interpolate from 0.25 to 0.50.
+    else if (num_lines <= thresholds$q2) {
+      # If the interval is zero (q2 equals q1), return the upper bound:
+      if (thresholds$q2 == thresholds$q1) {
+        return(0.50)
+      }
+      fraction <- (num_lines - thresholds$q1) / (thresholds$q2 - thresholds$q1)
+      return(0.25 + 0.25 * fraction)
+    }
+    # If between q2 and q3, interpolate from 0.50 to 0.75.
+    else if (num_lines <= thresholds$q3) {
+      if (thresholds$q3 == thresholds$q2) {
+        return(0.75)
+      }
+      fraction <- (num_lines - thresholds$q2) / (thresholds$q3 - thresholds$q2)
+      return(0.50 + 0.25 * fraction)
+    }
+    # If between q3 and max, interpolate from 0.75 to 1.
+    else {
+      if (thresholds$max == thresholds$q3) {
+        return(1)
+      }
+      fraction <- (num_lines - thresholds$q3) / (thresholds$max - thresholds$q3)
+      return(0.75 + 0.25 * fraction)
     }
   }
   
@@ -259,16 +318,25 @@ normalised_score <- function(features,
                          "2000" = list(max = 200, q3 = 195, q2 = 173, q1 = 152),      # example values for 2000m
                          list(max = 29, q3 = 18, q2 = 14, q1 = 11))
   
-    if (num_stops >= thresholds$max) {
-      return(1)
-    } else if (num_stops >= thresholds$q3) {
-      return(0.75)
-    } else if (num_stops >= thresholds$q2) {
-      return(0.50)
-    } else if (num_stops >= thresholds$q1) {  
-      return(0.25)
+    if (num_stops <= thresholds$q1) {
+      # Scale from 0 to 0.25 as num_stops goes from 0 to q1
+      fraction <- num_stops / thresholds$q1
+      return(0.25 * fraction)
+    } else if (num_stops <= thresholds$q2) {
+      # Scale from 0.25 to 0.50 as num_stops goes from q1 to q2
+      fraction <- (num_stops - thresholds$q1) / (thresholds$q2 - thresholds$q1)
+      return(0.25 + 0.25 * fraction)
+    } else if (num_stops <= thresholds$q3) {
+      # Scale from 0.50 to 0.75 as num_stops goes from q2 to q3
+      fraction <- (num_stops - thresholds$q2) / (thresholds$q3 - thresholds$q2)
+      return(0.50 + 0.25 * fraction)
+    } else if (num_stops <= thresholds$max) {
+      # Scale from 0.75 to 1.0 as num_stops goes from q3 to max
+      fraction <- (num_stops - thresholds$q3) / (thresholds$max - thresholds$q3)
+      return(0.75 + 0.25 * fraction)
     } else {
-      return(0)
+      # Anything beyond the max threshold gets a score of 1
+      return(1)
     }
   }
   
@@ -281,17 +349,27 @@ normalised_score <- function(features,
                          "2000" = list(max = 62, q3 = 61, q2 = 55, q1 = 45),      # example values for 2000m
                          list(max = 35, q3 = 23, q2 = 17, q1 = 13))
     
-    if (num_services >= thresholds$max) {
-      return(1)
-    } else if (num_services >= thresholds$q3) {
-      return(0.75)
-    } else if (num_services >= thresholds$q2) {
-      return(0.50)
-    } else if (num_services >= thresholds$q1) {  
-      return(0.25)
+    if (num_services <= thresholds$q1) {
+      # Scale linearly from 0 to 0.25 between 0 and Q1.
+      fraction <- num_services / thresholds$q1
+      score <- 0.25 * fraction
+    } else if (num_services <= thresholds$q2) {
+      # Scale linearly from 0.25 to 0.50 between Q1 and Q2.
+      fraction <- (num_services - thresholds$q1) / (thresholds$q2 - thresholds$q1)
+      score <- 0.25 + 0.25 * fraction
+    } else if (num_services <= thresholds$q3) {
+      # Scale linearly from 0.50 to 0.75 between Q2 and Q3.
+      fraction <- (num_services - thresholds$q2) / (thresholds$q3 - thresholds$q2)
+      score <- 0.50 + 0.25 * fraction
+    } else if (num_services <= thresholds$max) {
+      # Scale linearly from 0.75 to 1.0 between Q3 and maximum.
+      fraction <- (num_services - thresholds$q3) / (thresholds$max - thresholds$q3)
+      score <- 0.75 + 0.25 * fraction
     } else {
-      return(0)
+      # Cap the score at 1 if the number exceeds the maximum threshold.
+      score <- 1
     }
+    return(score)
   }
   
   # Bus score (distance excluded)
@@ -426,7 +504,7 @@ predict_accessibility <- function(location_input,
                                   weight_walk = 1/4 * 100, 
                                   weight_congestion = 1/4 * 100,
                                   selected_time_slots = c("AM_peak", "AM_offpeak", "PM_peak", "PM_offpeak"),
-                                  distance = 500) {
+                                  distance = distance) {
   
   # Determine if input is postal code or coordinate pair
   if (is.character(location_input)) {

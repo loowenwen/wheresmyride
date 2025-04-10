@@ -167,7 +167,7 @@ get_bus_routes <- function() {
   repeat {
     response <- GET(url, add_headers(AccountKey = api_key), query = list("$skip" = offset))
     data <- content(response, "text", encoding = "UTF-8")
-    parsed_data <- fromJSON(data, flatten = TRUE)
+    parsed_data <- fromJSON(data)
     
     if (length(parsed_data$value) == 0) break
     all_data <- append(all_data, list(parsed_data$value))
@@ -190,7 +190,7 @@ bus_services_lookup <- bus_routes_raw %>%
 
 ## ----feature-engineering---------------------------------------------------------------------------------------------------------------------------------------------------------
 
-engineer_features <- function(lat, lon, distance = 500) {
+engineer_features <- function(lat, lon, distance = 1000) {
   
   #Time based Bus passenger volume
   busstops_passengerVolume <- read_csv("../data/PV_busstops.csv", show_col_types = FALSE) %>%
@@ -242,7 +242,7 @@ engineer_features <- function(lat, lon, distance = 500) {
   avg_dist_mrt <- ifelse(num_mrt_stations > 0, mean(mrt_coords$dist), NA)
   
   if (num_mrt_stations == 0) {
-    message("No MRT stations found within 500m radius. MRT score may be low or NA.")
+    message("No MRT stations found within 1000m radius. MRT score may be low or NA.")
   }
   
   mrt_station_names <- mrt_coords$mrt_station
@@ -274,7 +274,7 @@ engineer_features <- function(lat, lon, distance = 500) {
     arrange(dist)
   
   if (num_bus_stops == 0) {
-    message("No bus stops found within 500m radius. Bus score may be low or NA.")
+    message("No bus stops found within 1000m radius. Bus score may be low or NA.")
   }
   
   nearby_bus_codes <- bus_nearby$BusStop_code
@@ -468,7 +468,7 @@ predict_accessibility <- function(location_input,
                                   weight_walk = 1/4 * 100, 
                                   weight_congestion = 1/4 * 100,
                                   selected_time_slots = c("AM_peak", "AM_offpeak", "PM_peak", "PM_offpeak"),
-                                  distance = 500) {
+                                  distance = 1000) {
   
   # Determine if input is postal code or coordinate pair
   if (is.character(location_input)) {

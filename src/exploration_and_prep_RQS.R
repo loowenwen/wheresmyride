@@ -99,10 +99,39 @@ par(mfrow = c(1, 1))
 
 ###Exploration for Transport Efficiency scoring 
 
+combined_transport_efficiency <- function(routes) {
+  
+  transport_scores <- numeric(length(routes))
+  
+  # Loop through all routes
+  for (i in 1:length(routes$duration)) {
+    
+    duration_hours <- routes$duration[[i]] / 3600
+    total_distance <- sum(routes$legs[[i]]$distance)
+    speed <- (total_distance / 1000) / duration_hours #km/h 
+    
+    # Normalize speed score (0-100)
+    max_speed <- 50  # km/h 
+    min_speed <- 3    # km/h
+    
+    transport_scores[i] <- 100 * (speed - min_speed) / (max_speed - min_speed)
+    transport_scores[i] <- max(0, min(100, transport_scores[i]))  # Clamp between 0-100
+  }
+  
+  # Handle case where no valid scores were calculated
+  if (all(is.na(transport_scores))) return(0)
+  
+  # Combine scores with weighting
+  sorted_scores <- sort(transport_scores, decreasing = TRUE)
+  
+  # Weighted components
+  best_score <- sorted_scores[1] * 0.8
+  second_best <- sorted_scores[2] * 0.1
+  worst <- sorted_scores[3] * 0.1
+  
+  return(best_score + second_best + worst)
 
-
-
-
+}
 
 
 

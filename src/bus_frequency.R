@@ -201,6 +201,10 @@ BusFrequencyAnalyzer <- setRefClass(
   )
 )
 
+
+df <- bus_analyzer$get_bus_route_details()
+
+
 #usage
 bus_analyzer <- BusFrequencyAnalyzer$new(api_key = "o6OuJxI3Re+qYgFQzb+4+w==")
 

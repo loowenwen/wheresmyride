@@ -34,20 +34,20 @@ observeEvent(input$t4_get_score, {
     print(paste("DEBUG: location_input is", location_input))
     
     if (is.null(location_input) || (is.character(location_input) && location_input == "")) {
-      showNotification("Please provide a location by entering a postal code or selecting a BTO project.", type = "error")
+      showNotification("Invalid or missing location input.", type = "error")
       return(NULL)
     }
     
     print("Calling predict_accessibility()...")
     
     result <- predict_accessibility(
-      location_input = location_input,  # ✅ FIXED!
+      location_input = location_input,  
       weight_mrt = input$t4_mrt,
       weight_bus = input$t4_bus,
       weight_walk = input$t4_walk,
       weight_congestion = input$t4_congestion,
       selected_time_slots = c("AM_peak", "AM_offpeak", "PM_peak", "PM_offpeak"),
-      distance = 500
+      distance = as.numeric(input$t4_nearby_radius)
     )
     
     print("predict_accessibility() succeeded")
@@ -65,19 +65,17 @@ observeEvent(input$t4_get_score, {
       `Estimated Travel Time (min)` = sample(10:60, 6)
     )
     
-    colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
-    
     mrt_df <- result$features$mrt_stop_distances %>%
       rename(Description = mrt_station, `Distance (m)` = dist) %>%
       mutate(Type = "MRT") %>%
       select(Type, Description, `Distance (m)`) %>%
-      filter(`Distance (m)` <= 500)
+      filter(`Distance (m)` <= as.numeric(input$t4_nearby_radius))
     
     bus_df <- result$features$bus_stop_distances %>%
       rename(`Distance (m)` = dist) %>%
       mutate(Type = "Bus") %>%
       select(Type, Description, `Distance (m)`) %>%
-      filter(`Distance (m)` <= 500)
+      filter(`Distance (m)` <= as.numeric(input$t4_nearby_radius))
     
     accessibility_scores$nearby_stops <- bind_rows(mrt_df, bus_df)
     
@@ -111,7 +109,7 @@ observeEvent(input$t4_recalculate, {
     } else if (!is.null(input$t4_bto_project) && input$t4_bto_project != "") {
       location_input <- get_coords_from_bto(input$t4_bto_project)
     } else {
-      showNotification("Please provide a location by entering a postal code or selecting a BTO project.", type = "error")
+      showNotification("Location not provided. Please select a postal code or BTO.", type = "error")
       return(NULL)
     }
     
@@ -143,13 +141,13 @@ observeEvent(input$t4_recalculate, {
       rename(Description = mrt_station, `Distance (m)` = dist) %>%
       mutate(Type = "MRT") %>%
       select(Type, Description, `Distance (m)`) %>%
-      filter(`Distance (m)` <= 500)
+      filter(`Distance (m)` <= as.numeric(input$t4_nearby_radius))
     
     bus_df <- result$features$bus_stop_distances %>%
       rename(`Distance (m)` = dist) %>%
       mutate(Type = "Bus") %>%
       select(Type, Description, `Distance (m)`) %>%
-      filter(`Distance (m)` <= 500)
+      filter(`Distance (m)` <= as.numeric(input$t4_nearby_radius))
     
     accessibility_scores$nearby_stops <- bind_rows(mrt_df, bus_df)
     

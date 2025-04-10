@@ -471,7 +471,7 @@ shinyServer(function(input, output, session) {
   # Initialize route analyzer
   route_analyzer <- RouteAnalyzer$new()
   
-  #Create reactive values
+  # Create reactive values
   rqs_results <- reactiveValues(
     a = NULL,
     b = NULL,
@@ -516,103 +516,148 @@ shinyServer(function(input, output, session) {
   
   
   # Handle comparison button click
-  observeEvent(input$t3_get_comparison, {
-    req(input$t3_destination_postal)
+  observeEvent(c(input$t3_get_comparison, input$t3_recalculate, input$t3_calculate_with_new_time), {
     
-    # Validate at least one BTO selected
-    if (is.null(input$t3_bto_a) && is.null(input$t3_bto_b) && 
-        is.null(input$t3_bto_c) && is.null(input$t3_bto_d)) {
-      showNotification("Please select at least one BTO project", type = "warning")
-      return()
+    # --- Validate Postal Code ---
+    if (is.null(input$t3_destination_postal) || !grepl("^\\d{6}$", input$t3_destination_postal)) {
+      showNotification("Please enter a valid 6-digit postal code.", type = "error")
+      return(NULL)
     }
     
-    # Validate postal code
-    if (!grepl("^\\d{6}$", input$t3_destination_postal)) {
-      showNotification("Please enter a valid 6-digit postal code", type = "warning")
-      return()
+    # --- Validate At Least One BTO is Selected ---
+    if (all(c(input$t3_bto_a, input$t3_bto_b, input$t3_bto_c, input$t3_bto_d) == "")) {
+      showNotification("Please select at least one BTO project.", type = "error")
+      return(NULL)
     }
     
-    # Calculate for each selected BTO
-    if (!is.null(input$t3_bto_a)) {
-      bto_coords <- get_bto_coords(input$t3_bto_a)
-      results <- route_analyzer$calculate_rqs(
-        start = bto_coords,
-        end = input$t3_destination_postal,
-        date = "03-24-2025",
-        time_period = rqs_time_period(),
-        maxWalkDistance = 1000,
-        weights = rqs_weights()
-      )
-      rqs_radar_data$x <- results$components
-      rqs_results$a <- results$rqs
+    # --- Process Each Selected BTO Safely ---
+    if (!is.null(input$t3_bto_a) && input$t3_bto_a != "") {
+      tryCatch({
+        bto_coords <- get_bto_coords(input$t3_bto_a)
+        results <- route_analyzer$calculate_rqs(
+          start = bto_coords,
+          end = input$t3_destination_postal,
+          date = "03-24-2025",
+          time_period = rqs_time_period(),
+          maxWalkDistance = 1000,
+          weights = rqs_weights()
+        )
+        rqs_radar_data$x <- results$components
+        rqs_results$a <- results$rqs
+      }, error = function(e) {
+        showNotification("Failed to calculate Route Quality for BTO A", type = "error")
+        print(e)
+      })
     }
     
-    if (!is.null(input$t3_bto_b)) {
-      bto_coords <- get_bto_coords(input$t3_bto_b)
-      results <- route_analyzer$calculate_rqs(
-        start = bto_coords,
-        end = input$t3_destination_postal,
-        date = "03-24-2025",
-        maxWalkDistance = 1000,
-        time_period = rqs_time_period(),
-        weights = rqs_weights()
-      )
-      rqs_radar_data$y <- results$components
-      rqs_results$b <- results$rqs
+    if (!is.null(input$t3_bto_b) && input$t3_bto_b != "") {
+      tryCatch({
+        bto_coords <- get_bto_coords(input$t3_bto_b)
+        results <- route_analyzer$calculate_rqs(
+          start = bto_coords,
+          end = input$t3_destination_postal,
+          date = "03-24-2025",
+          time_period = rqs_time_period(),
+          maxWalkDistance = 1000,
+          weights = rqs_weights()
+        )
+        rqs_radar_data$y <- results$components
+        rqs_results$b <- results$rqs
+      }, error = function(e) {
+        showNotification("Failed to calculate Route Quality for BTO B", type = "error")
+        print(e)
+      })
     }
     
-    if (!is.null(input$t3_bto_c)) {
-      bto_coords <- get_bto_coords(input$t3_bto_c)
-      results <- route_analyzer$calculate_rqs(
-        start = bto_coords,
-        end = input$t3_destination_postal,
-        date = "03-24-2025",
-        time_period = rqs_time_period(),
-        maxWalkDistance = 1000,
-        weights = rqs_weights()
-      )
-      rqs_radar_data$z <- results$components
-      rqs_results$c <- results$rqs
+    if (!is.null(input$t3_bto_c) && input$t3_bto_c != "") {
+      tryCatch({
+        bto_coords <- get_bto_coords(input$t3_bto_c)
+        results <- route_analyzer$calculate_rqs(
+          start = bto_coords,
+          end = input$t3_destination_postal,
+          date = "03-24-2025",
+          time_period = rqs_time_period(),
+          maxWalkDistance = 1000,
+          weights = rqs_weights()
+        )
+        rqs_radar_data$z <- results$components
+        rqs_results$c <- results$rqs
+      }, error = function(e) {
+        showNotification("Failed to calculate Route Quality for BTO C", type = "error")
+        print(e)
+      })
     }
     
-    if (!is.null(input$t3_bto_d)) {
-      bto_coords <- get_bto_coords(input$t3_bto_d)
-      results <- route_analyzer$calculate_rqs(
-        start = bto_coords,
-        end = input$t3_destination_postal,
-        date = "03-24-2025",
-        time_period = rqs_time_period(),
-        maxWalkDistance = 1000,
-        weights = rqs_weights()
-      )
-      rqs_radar_data$w <- results$components
-      rqs_results$d <- results$rqs
+    if (!is.null(input$t3_bto_d) && input$t3_bto_d != "") {
+      tryCatch({
+        bto_coords <- get_bto_coords(input$t3_bto_d)
+        results <- route_analyzer$calculate_rqs(
+          start = bto_coords,
+          end = input$t3_destination_postal,
+          date = "03-24-2025",
+          time_period = rqs_time_period(),
+          maxWalkDistance = 1000,
+          weights = rqs_weights()
+        )
+        rqs_radar_data$w <- results$components
+        rqs_results$d <- results$rqs
+      }, error = function(e) {
+        showNotification("Failed to calculate Route Quality for BTO D", type = "error")
+        print(e)
+      })
     }
     
   })
   
-  # Render radar charts
+  # --- Render Radar Charts for Each BTO ---
   output$t3_radar_a <- renderPlotly({
-    req(rqs_radar_data$x)
+    if (is.null(rqs_radar_data$x)) {
+      return(create_base_radar_chart())
+    }
     create_radar_chart(rqs_radar_data$x)
   })
   
   output$t3_radar_b <- renderPlotly({
-    req(rqs_radar_data$y)
+    if (is.null(rqs_radar_data$y)) {
+      return(create_base_radar_chart())
+    }
     create_radar_chart(rqs_radar_data$y)
   })
   
   output$t3_radar_c <- renderPlotly({
-    req(rqs_radar_data$z)
+    if (is.null(rqs_radar_data$z)) {
+      return(create_base_radar_chart())
+    }
     create_radar_chart(rqs_radar_data$z)
   })
   
   output$t3_radar_d <- renderPlotly({
-    req(rqs_radar_data$w)
+    if (is.null(rqs_radar_data$w)) {
+      return(create_base_radar_chart())
+    }
     create_radar_chart(rqs_radar_data$w)
   })
   
-  # Radar chart creation function
+  # --- Base Radar Chart ---
+  create_base_radar_chart <- function() {
+    plot_ly(
+      type = 'scatterpolar',
+      r = c(0, 0, 0, 0, 0),
+      theta = c("Trip Speed", "Ride Comfort", "Route Reliability", 
+                "Transport Frequency", "Trip Speed"),
+      fill = 'toself',
+      name = "No Data",
+      opacity = 0.3
+    ) %>%
+      layout(
+        title = list(text = "Awaiting Results", x = 0.5),
+        polar = list(radialaxis = list(visible = TRUE, range = c(0, 100))),
+        showlegend = FALSE,
+        margin = list(l = 50, r = 50, b = 50, t = 50)
+      )
+  }
+  
+  # --- Actual Radar Chart Create Function ---
   create_radar_chart <- function(rqs_data) {
     plot_ly(
       type = 'scatterpolar',
@@ -635,57 +680,45 @@ shinyServer(function(input, output, session) {
   
   # --- Render Radar Chart Individual Score
   output$t3_radar_a_score <- renderUI({
-    req(rqs_results$a)
-    h2(round(rqs_results$a, 1), style = "font-weight: bold")
+    score <- rqs_results$a
+    if (!is.null(score) && !is.na(score)) {
+      color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+      return(h2(round(score, 1), class = color, style = "font-weight: bold"))
+    } else {
+      return(h2("00.0", style = "font-weight: bold"))
+    }
   })
   
   
   output$t3_radar_b_score <- renderUI({
-    req(rqs_results$b)
-    h2(round(rqs_results$b, 1), style = "font-weight: bold")
+    score <- rqs_results$b
+    if (!is.null(score) && !is.na(score)) {
+      color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+      return(h2(round(score, 1), class = color, style = "font-weight: bold"))
+    } else {
+      return(h2("00.0", style = "font-weight: bold"))
+    }
   })
   
   output$t3_radar_c_score <- renderUI({
-    req(rqs_results$c)
-    h2(round(rqs_results$c, 1), style = "font-weight: bold")
+    score <- rqs_results$c
+    if (!is.null(score) && !is.na(score)) {
+      color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+      return(h2(round(score, 1), class = color, style = "font-weight: bold"))
+    } else {
+      return(h2("00.0", style = "font-weight: bold"))
+    }
   })
   
   output$t3_radar_d_score <- renderUI({
-    req(rqs_results$d)
-    h2(round(rqs_results$d, 1), style = "font-weight: bold")
+    score <- rqs_results$d
+    if (!is.null(score) && !is.na(score)) {
+      color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+      return(h2(round(score, 1), class = color, style = "font-weight: bold"))
+    } else {
+      return(h2("00.0", style = "font-weight: bold"))
+    }
   })
-  
-  # --- More Information About Factors ---
-  observeEvent(input$open_factors_modal, {
-    showModal(modalDialog(
-      title = "Understanding the Route Quality Factors",
-      tags$ul(
-        tags$li(
-          icon("tachometer-alt", lib = "font-awesome"), 
-          tags$b(" Trip Speed: "), "How fast will I get there? ",
-          tags$span("This measures overall travel time and route efficiency, favouring options that get you to your destination quicker.")
-        ),
-        tags$li(
-          icon("bus", lib = "font-awesome"),
-          tags$b(" Ride Comfort: "), "How pleasant is the journey? ",
-          tags$span("Considers walking time and number of transfers. Fewer changes and less walking mean higher comfort.")
-        ),
-        tags$li(
-          icon("exclamation-triangle", lib = "font-awesome"),
-          tags$b(" Route Reliability: "), "Will my commute be disrupted? ",
-          tags$span("Evaluates backup options and mode diversity. More alternative routes and transport types improve reliability.")
-        ),
-        tags$li(
-          icon("clock", lib = "font-awesome"),
-          tags$b(" Transport Frequency: "), "How often do the buses or trains come? ",
-          tags$span("Measures expected waiting times based on your selected travel period.")
-        )
-      ),
-      easyClose = TRUE,
-      footer = modalButton("Close")
-    ))
-  })
-  
   
 
   # ==== TAB 4: Accessibility Dashboard ====
@@ -703,7 +736,7 @@ shinyServer(function(input, output, session) {
     }
   })
   
-  # Determine source of coordinates (postal code or selected BTO)
+  # --- Determine Source of Coordinates (postal code or selected bto) ---
   get_selected_coords <- reactive({
     if (!is.null(input$t4_postal_code) && input$t4_postal_code != "") {
       coords <- tryCatch({
@@ -765,30 +798,23 @@ shinyServer(function(input, output, session) {
   
   # --- Initial Accessibility Score Calculation ---
   observeEvent(input$t4_get_score, {
-    accessibility_scores$overall_score <- round(runif(1, 50, 100), 1)
-    accessibility_scores$mrt_score <- round(runif(1, 0, 100), 1)
-    accessibility_scores$bus_score <- round(runif(1, 0, 100), 1)
-    accessibility_scores$walk_score <- round(runif(1, 0, 100), 1)
-    accessibility_scores$congestion_score <- round(runif(1, 0, 100), 1)
+    accessibility_scores$overall_score <- NA
+    accessibility_scores$mrt_score <- NA
+    accessibility_scores$bus_score <- NA
+    accessibility_scores$walk_score <- NA
+    accessibility_scores$congestion_score <- NA
     
-    #travel_time_df <- build_travel_time_df(t4_postal_code)
-    #accessibility_scores$travel_times <- data.frame(
-      #Location = travel_time_df$Name,
-      #TravelTime_Min = travel_time_df$EstimatedTimeMin
-    #)
-
     accessibility_scores$travel_times <- data.frame(
     Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
-    TravelTime_Min = sample(10:60, 6)
+    TravelTime_Min = rep(NA, 6)
     )
-    colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
     
     colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
     
     accessibility_scores$nearby_stops <- data.frame(
-       Type = c("MRT", "MRT", "Bus", "Bus"),
-       Description = c("Tampines", "Simei", "Bus 293", "Bus 10"),
-       Distance_m = sample(100:500, 4)
+       Type = c("MRT", "Bus"),
+       Description = c(NA, NA),
+       TravelTime_Min = rep(NA, 2)
     )
     
     colnames(accessibility_scores$nearby_stops)[3] <- "Distance (m)"
@@ -806,10 +832,10 @@ shinyServer(function(input, output, session) {
     w_congestion <- input$t4_congestion / total_weight
     
     # Update component scores
-    accessibility_scores$mrt_score <- round(runif(1, 0, 100), 1)
-    accessibility_scores$bus_score <- round(runif(1, 0, 100), 1)
-    accessibility_scores$walk_score <- round(runif(1, 0, 100), 1)
-    accessibility_scores$congestion_score <- round(runif(1, 0, 100), 1)
+    accessibility_scores$mrt_score <- NA
+    accessibility_scores$bus_score <- NA
+    accessibility_scores$walk_score <- NA
+    accessibility_scores$congestion_score <- NA
     
     # Weighted overall score
     accessibility_scores$overall_score <- round(
@@ -818,10 +844,24 @@ shinyServer(function(input, output, session) {
         accessibility_scores$walk_score * w_walk +
         accessibility_scores$congestion_score * w_congestion, 1
     )
+    
+    accessibility_scores$travel_times <- data.frame(
+      Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
+      TravelTime_Min = rep(NA, 6)
+    )
+    
+    colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
+    
+    accessibility_scores$nearby_stops <- data.frame(
+      Type = c("MRT", "Bus"),
+      Description = c(NA, NA),
+      TravelTime_Min = rep(NA, 2)
+    )
+    
+    colnames(accessibility_scores$nearby_stops)[3] <- "Distance (m)"
   })
   
   # --- UI Outputs ---
-  
   output$t4_score_display <- renderUI({
     if (!initial_calculation())
       return(h1("00.0", style = "font-weight: bold"))
@@ -903,7 +943,6 @@ shinyServer(function(input, output, session) {
   })
 
    # --- Optionally Source Custom Logic from testServer.R ---
-   
    override_file <- "tab4Override.R"
    predict_file <- "predict_accessibility.R"
    

@@ -249,31 +249,58 @@ shinyUI(
                  h3(tagList(icon("chart-pie", lib = "font-awesome"), " Visual Comparison: Radar Charts"), class = "fw-bold"),
                  tags$p(class = "text-muted",
                    "The radar charts below update based on your selected travel time. They give a quick visual overview of how each selected BTO fares across comfort, speed, frequency, and reliability."),
-                 
-                 tags$div(
-                   class = "form-group",
-                   tags$label(
-                     "Preferred Travel Time",
-                     HTML('&nbsp;'),
-                     tags$i(
-                       class = "fas fa-circle-question text-muted",
-                       style = "cursor: pointer;",
-                       title = "Choose when you usually commute. This helps assess how crowded buses and trains are at that time.",
-                       `data-bs-toggle` = "tooltip",
-                       `data-bs-placement` = "right"
-                     )
+                 fluidRow(
+                   column(4,
+                          tags$div(
+                            class = "form-group",
+                            tags$label(
+                              "Preferred Travel Time",
+                              HTML('&nbsp;'),
+                              tags$i(
+                                class = "fas fa-circle-question text-muted",
+                                style = "cursor: pointer;",
+                                title = "Choose when you usually commute. This helps assess how crowded buses and trains are at that time.",
+                                `data-bs-toggle` = "tooltip",
+                                `data-bs-placement` = "right"
+                              )
+                            ),
+                            radioButtons("t3_travel_time_preference", label = NULL,
+                                         choices = c(
+                                           "AM Peak (6:30–8:30am)" = "AM_peak",
+                                           "AM Off-Peak (8:31am–4:59pm)" = "AM_offpeak",
+                                           "PM Peak (5–7pm)" = "PM_peak",
+                                           "PM Off-Peak (7pm–)" = "PM_offpeak"
+                                         ),
+                                         selected = "AM_peak")
+                          ),
+                            actionButton("t3_calculate_with_new_time", "Recalculate with New Travel Time", icon = icon("magnifying-glass"))
                    ),
-                   radioButtons("t3_travel_time_preference", label = NULL,
-                                choices = c(
-                                  "AM Peak (6:30–8:30am)" = "AM_peak",
-                                  "AM Off-Peak (8:31am–4:59pm)" = "AM_offpeak",
-                                  "PM Peak (5–7pm)" = "PM_peak",
-                                  "PM Off-Peak (7pm–)" = "PM_offpeak"
-                                ),
-                                selected = "AM_peak")
+                   column(8,
+                          p("Understanding the Route Quality Factors"),
+                          tags$ul(
+                            tags$li(
+                              icon("tachometer-alt", lib = "font-awesome"), 
+                              tags$b(" Trip Speed: "), "How fast will I get there? ",
+                              tags$span("This measures overall travel time and route efficiency, favouring options that get you to your destination quicker.")
+                            ),
+                            tags$li(
+                              icon("bus", lib = "font-awesome"),
+                              tags$b(" Ride Comfort: "), "How pleasant is the journey? ",
+                              tags$span("Considers walking time and number of transfers. Fewer changes and less walking mean higher comfort.")
+                            ),
+                            tags$li(
+                              icon("exclamation-triangle", lib = "font-awesome"),
+                              tags$b(" Route Reliability: "), "Will my commute be disrupted? ",
+                              tags$span("Evaluates backup options and mode diversity. More alternative routes and transport types improve reliability.")
+                            ),
+                            tags$li(
+                              icon("clock", lib = "font-awesome"),
+                              tags$b(" Transport Frequency: "), "How often do the buses or trains come? ",
+                              tags$span("Measures expected waiting times based on your selected travel period.")
+                            )
+                          )
+                   )
                  ),
-                 
-                 actionLink("open_factors_modal", "What do these scores mean?"),
                  
                  fluidRow(
                    column(6, h4("Radar Chart: BTO A", style = "font-weight: bold"), 

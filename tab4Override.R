@@ -34,7 +34,7 @@ observeEvent(input$t4_get_score, {
     print(paste("DEBUG: location_input is", location_input))
     
     if (is.null(location_input) || (is.character(location_input) && location_input == "")) {
-      showNotification("Invalid or missing location input.", type = "error")
+      showNotification("Please provide a location by entering a postal code or selecting a BTO project.", type = "error")
       return(NULL)
     }
     
@@ -64,6 +64,8 @@ observeEvent(input$t4_get_score, {
       Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
       `Estimated Travel Time (min)` = sample(10:60, 6)
     )
+    
+    colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
     
     mrt_df <- result$features$mrt_stop_distances %>%
       rename(Description = mrt_station, `Distance (m)` = dist) %>%
@@ -109,7 +111,7 @@ observeEvent(input$t4_recalculate, {
     } else if (!is.null(input$t4_bto_project) && input$t4_bto_project != "") {
       location_input <- get_coords_from_bto(input$t4_bto_project)
     } else {
-      showNotification("Location not provided. Please select a postal code or BTO.", type = "error")
+      showNotification("Please provide a location by entering a postal code or selecting a BTO project.", type = "error")
       return(NULL)
     }
     

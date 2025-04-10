@@ -108,7 +108,7 @@ leaflet(data = planning_areas) %>%
     label = ~pln_area_n
   )
 
-readRDS("data/RDS Files/planning_area_polygons.RDS")
-bus_stops <- readRDS("data/RDS Files/bus_with_planning.RDS")
-mrt_lrt <- readRDS("data/RDS Files/mrt_stations.RDS")
+readRDS("data/RDS Files/planning_area_polygons.rds")
+bus_stops <- readRDS("data/RDS Files/bus_with_planning.rds")
+mrt_lrt <- readRDS("data/RDS Files/mrt_stations.rds")
 

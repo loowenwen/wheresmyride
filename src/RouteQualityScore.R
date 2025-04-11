@@ -338,48 +338,57 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                
                                calculate_route_options_service_quality = function(routes, time_period, freq_data = bus_frequencies) {
                                  
-                                 # Map your time periods to the analyzer's time periods
+                                 # Map human-readable time periods to data column suffix
                                  analyzer_period <- switch(time_period,
                                                            "Morning Peak (6:30-8:30am)" = "AM_Peak",
                                                            "Evening Peak (5-7pm)" = "PM_Peak",
                                                            "Daytime Off-Peak (8:30am-5pm)" = "AM_Offpeak",
                                                            "Nighttime Off-Peak (7pm-6:30am)" = "PM_Offpeak",
-                                                           NA  # default if no match
-                                 )
+                                                           NA)
+                                 
+                                 # Validate time period
+                                 if (is.na(analyzer_period)) {
+                                   warning("Invalid time_period provided.")
+                                   return(NA)
+                                 }
                                  
                                  time_period_avg_column <- paste0(analyzer_period, "_avg")
                                  all_freqs_raw <- freq_data[[time_period_avg_column]]
+                                 
+                                 # Filter out NA and zero values, then log-transform
                                  all_freqs <- log(all_freqs_raw[!is.na(all_freqs_raw) & all_freqs_raw > 0])
                                  
-                                 #intialise
+                                 # Validate frequency data
+                                 if (length(all_freqs) == 0) {
+                                   warning("No valid frequency data for the selected time period.")
+                                   return(NA)
+                                 }
+                                 
                                  route_scores <- numeric(nrow(routes))
                                  
-                                 for (route_id in 1:nrow(routes)) { 
+                                 for (route_id in 1:nrow(routes)) {
                                    bus_scores <- NULL
                                    train_score <- NULL
                                    
-                                   transport_modes <- routes$legs[[route_id]]$route  
+                                   transport_modes <- routes$legs[[route_id]]$route
                                    transport_modes <- transport_modes[transport_modes != ""]
                                    
-                                   # Identify transport modes (improved regex)
-                                   bus_service_nos <- transport_modes[grepl("^[0-9]+$", transport_modes)]  # Only numeric
-                                   train_service_no <- transport_modes[grepl("^[A-Za-z]", transport_modes)]  # Starts with letter
+                                   bus_service_nos <- transport_modes[grepl("^[0-9]+$", transport_modes)]
+                                   train_service_no <- transport_modes[grepl("^[A-Za-z]", transport_modes)]
                                    
-                                   # Skip if no valid services
+                                   # Skip invalid routes
                                    if (length(bus_service_nos) == 0 && length(train_service_no) == 0) {
                                      route_scores[route_id] <- NA
                                      next
                                    }
                                    
-                                   # Bus service scoring
+                                   # --- Bus Scoring ---
                                    if (length(bus_service_nos) > 0) {
                                      bus_scores <- numeric(length(bus_service_nos))
                                      
-                                     for (bus_idx in seq_along(bus_service_nos)) {  # Changed from i to bus_idx
+                                     for (bus_idx in seq_along(bus_service_nos)) {
                                        bus_service_no <- bus_service_nos[bus_idx]
-                                       
-                                       service_freq <- freq_data[freq_data$ServiceNo == bus_service_no, 
-                                                                 time_period_avg_column][1]  # Ensure single value
+                                       service_freq <- freq_data[freq_data$ServiceNo == bus_service_no, time_period_avg_column][1]
                                        
                                        if (is.na(service_freq) || service_freq <= 0) {
                                          bus_scores[bus_idx] <- 0
@@ -391,9 +400,9 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      }
                                    }
                                    
-                                   # Train service scoring
+                                   # --- Train Scoring ---
                                    if (length(train_service_no) > 0) {
-                                     train_service_no <- train_service_no[1]  # Take first if multiple
+                                     train_service_no <- train_service_no[1]
                                      service_freq <- ifelse(analyzer_period %in% c("AM_Peak", "PM_Peak"), 2.5, 6)
                                      
                                      log_freq <- log(service_freq)
@@ -401,7 +410,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                      train_score <- round((1 - percentile_rank) * 100)
                                    }
                                    
-                                   # Combine scores
+                                   # --- Combine Scores ---
                                    if (!is.null(bus_scores) && !is.null(train_score)) {
                                      route_scores[route_id] <- round(mean(c(bus_scores, train_score)))
                                    } else if (!is.null(bus_scores)) {
@@ -411,15 +420,19 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    }
                                  }
                                  
-                                 #balance best-case, average and reliability
-                                 combined_score <- round(mean(c(
-                                   max(route_scores),       
-                                   mean(route_scores),       
-                                   quantile(route_scores, 0.25)  
-                                 ))) 
+                                 # Filter out NA route scores before combining
+                                 valid_scores <- route_scores[!is.na(route_scores)]
+                                 
+                                 if (length(valid_scores) == 0) {
+                                   return(NA)
+                                 }
+                                 
+                                 # Final combined score: mean of all route scores
+                                 combined_score <- round(mean(valid_scores))
                                  
                                  return(combined_score)
                                },
+                               
             
                                calculate_rqs = function(start, end, date, time_period, maxWalkDistance = 1000, weights = c(transport = 0.25, comfort = 0.25, 
                                                                                                                             robustness = 0.25, service = 0.25)  ) {
@@ -483,9 +496,6 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                              )
 )
                                                      
-
-
-
 
 
 

@@ -17,10 +17,29 @@ BusFrequencyAnalyzer <- setRefClass(
     },
     
     get_all_bus_services = function() {
-      url <- paste0(.self$base_url, "BusServices")
-      response <- GET(url, add_headers(AccountKey = .self$api_key))
-      content <- content(response, "text", encoding = "UTF-8")
-      fromJSON(content)$value
+      all_services <- list()
+      skip <- 0
+      
+      repeat {
+        url <- paste0(.self$base_url, "BusServices?$skip=", skip)
+        response <- GET(url, add_headers(AccountKey = .self$api_key))
+        
+        if (response$status_code != 200) {
+          warning("Failed to retrieve data from LTA API.")
+          break
+        }
+        
+        content_data <- content(response, "text", encoding = "UTF-8")
+        data <- fromJSON(content_data)$value
+        
+        if (length(data) == 0) break
+        
+        all_services <- append(all_services, list(data))
+        skip <- skip + length(data)
+      }
+      
+      # Combine all results into a single data frame
+      do.call(rbind, all_services)
     },
     
     parse_frequency = function(freq_str) {

@@ -1,12 +1,11 @@
-# Start from rocker/shiny which includes Shiny Server
-FROM rocker/shiny:4.3.2
+# Base image with R + Shiny Server
+FROM rocker/shiny:latest
 
-# Install system dependencies for sf and other packages
+# System dependencies for R packages like sf, units, etc.
 RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libssl-dev \
     libxml2-dev \
-    libgit2-dev \
     libgdal-dev \
     libgeos-dev \
     libproj-dev \
@@ -16,25 +15,23 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libtiff5-dev \
     libjpeg-dev \
-    libxlsxwriter-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean
 
-# Set working directory for app
-WORKDIR /srv/shiny-server
+# Install required R packages
+RUN R -e "install.packages(c( \
+  'shiny', 'leaflet', 'dplyr', 'tidyverse', 'httr', 'jsonlite', \
+  'sf', 'lubridate', 'readxl', 'geosphere', 'units', \
+  'scales', 'shinyjs', 'plotly', 'shinythemes' \
+), repos = 'https://cloud.r-project.org')"
 
-# Copy renv files and restore environment
-COPY renv.lock renv.lock
-COPY renv/ ./renv
-RUN R -e "install.packages('renv', repos = 'https://cloud.r-project.org/'); renv::restore(prompt = FALSE)"
+# Copy app files into the image
+COPY . /srv/shiny-server/wheresmyride
 
-# Copy the rest of the Shiny app
-COPY . .
-
-# Give permissions to Shiny user
+# Make sure shiny owns the folder
 RUN chown -R shiny:shiny /srv/shiny-server
 
-# Expose port 3838
+# Expose Shiny server port
 EXPOSE 3838
 
-# Start Shiny Server
+# Run Shiny Server
 CMD ["/usr/bin/shiny-server"]

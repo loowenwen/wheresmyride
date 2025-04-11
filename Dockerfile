@@ -1,6 +1,7 @@
-FROM rocker/geospatial:latest
+# Start from rocker/shiny which includes Shiny Server
+FROM rocker/shiny:4.3.2
 
-# Install system dependencies (safe to keep all for now)
+# Install system dependencies for sf and other packages
 RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libssl-dev \
@@ -18,21 +19,22 @@ RUN apt-get update && apt-get install -y \
     libxlsxwriter-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy renv files first to leverage Docker cache
-COPY renv.lock /srv/shiny-server/renv.lock
-COPY renv /srv/shiny-server/renv
+# Set working directory for app
+WORKDIR /srv/shiny-server
 
-# Install renv and restore package environment
-RUN R -e "install.packages('renv', repos = 'https://cloud.r-project.org/'); renv::restore('/srv/shiny-server')"
+# Copy renv files and restore environment
+COPY renv.lock renv.lock
+COPY renv/ ./renv
+RUN R -e "install.packages('renv', repos = 'https://cloud.r-project.org/'); renv::restore(prompt = FALSE)"
 
 # Copy the rest of the Shiny app
-COPY . /srv/shiny-server/
+COPY . .
 
-# Set permissions
-# RUN chown -R shiny:shiny /srv/shiny-server
+# Give permissions to Shiny user
+RUN chown -R shiny:shiny /srv/shiny-server
 
-# Expose Shiny server port
+# Expose port 3838
 EXPOSE 3838
 
-# Start Shiny server
+# Start Shiny Server
 CMD ["/usr/bin/shiny-server"]

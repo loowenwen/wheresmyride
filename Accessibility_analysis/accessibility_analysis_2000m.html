@@ -403,6 +403,42 @@ source(&quot;accessibility_functions_2000m.R&quot;)</code></pre>
 <pre><code>## 
 ## 
 ## processing file: predict_accessibility_test.Rmd</code></pre>
+<pre><code>## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)
+## Warning in attr(x, &quot;match.length&quot;): &#39;xfun::attr()&#39; is deprecated.
+## Use &#39;xfun::attr2()&#39; instead.
+## See help(&quot;Deprecated&quot;)</code></pre>
 <pre><code>##   |                                                        |                                                |   0%  |                                                        |..                                              |   4%                        |                                                        |....                                            |   8% [setup]                |                                                        |......                                          |  12%                        |                                                        |........                                        |  17% [unnamed-chunk-14]     |                                                        |..........                                      |  21%                        |                                                        |............                                    |  25% [unnamed-chunk-15]     |                                                        |..............                                  |  29%                        |                                                        |................                                |  33% [unnamed-chunk-16]     |                                                        |..................                              |  38%                        |                                                        |....................                            |  42% [unnamed-chunk-17]     |                                                        |......................                          |  46%                        |                                                        |........................                        |  50% [unnamed-chunk-18]     |                                                        |..........................                      |  54%                        |                                                        |............................                    |  58% [unnamed-chunk-19]     |                                                        |..............................                  |  62%                        |                                                        |................................                |  67% [feature-engineering]  |                                                        |..................................              |  71%                        |                                                        |....................................            |  75% [scoring-function]     |                                                        |......................................          |  79%                        |                                                        |........................................        |  83% [main-function]        |                                                        |..........................................      |  88%                        |                                                        |............................................    |  92% [unnamed-chunk-20]     |                                                        |..............................................  |  96%                        |                                                        |................................................| 100% [unnamed-chunk-21]   </code></pre>
 <pre><code>## output file: accessibility_functions.R</code></pre>
 <pre class="r"><code># --- Step 2: Read and Process the GeoJSON File ---
@@ -661,33 +697,38 @@ ggplot(bus_volume_long, aes(x = bus_volume)) +
 busVol_quantile_summary &lt;- bus_volume_long %&gt;%
   group_by(time_period) %&gt;%
   summarise(
+    max = max(bus_volume),
     Q1 = quantile(bus_volume, probs = 0.25, na.rm = TRUE),
     Q2 = quantile(bus_volume, probs = 0.5, na.rm = TRUE),
     Q3 = quantile(bus_volume, probs = 0.75, na.rm = TRUE),
     .groups = &quot;drop&quot;
   ) %&gt;%
   pivot_longer(
-    cols = c(Q1, Q2, Q3),
+    cols = c(Q1, Q2, Q3, max),
     names_to = &quot;quartile&quot;,
     values_to = &quot;bus_volume_value&quot;
   )
 
 print(busVol_quantile_summary)</code></pre>
-<pre><code>## # A tibble: 12 × 3
+<pre><code>## # A tibble: 16 × 3
 ##    time_period                           quartile bus_volume_value
 ##    &lt;chr&gt;                                 &lt;chr&gt;               &lt;dbl&gt;
 ##  1 result_features_bus_volume_AM_offpeak Q1                   322.
 ##  2 result_features_bus_volume_AM_offpeak Q2                   378.
 ##  3 result_features_bus_volume_AM_offpeak Q3                   422.
-##  4 result_features_bus_volume_AM_peak    Q1                   200.
-##  5 result_features_bus_volume_AM_peak    Q2                   242.
-##  6 result_features_bus_volume_AM_peak    Q3                   278.
-##  7 result_features_bus_volume_PM_offpeak Q1                   130.
-##  8 result_features_bus_volume_PM_offpeak Q2                   165.
-##  9 result_features_bus_volume_PM_offpeak Q3                   192.
-## 10 result_features_bus_volume_PM_peak    Q1                   147.
-## 11 result_features_bus_volume_PM_peak    Q2                   164.
-## 12 result_features_bus_volume_PM_peak    Q3                   186.</code></pre>
+##  4 result_features_bus_volume_AM_offpeak max                  556.
+##  5 result_features_bus_volume_AM_peak    Q1                   200.
+##  6 result_features_bus_volume_AM_peak    Q2                   242.
+##  7 result_features_bus_volume_AM_peak    Q3                   278.
+##  8 result_features_bus_volume_AM_peak    max                  388.
+##  9 result_features_bus_volume_PM_offpeak Q1                   130.
+## 10 result_features_bus_volume_PM_offpeak Q2                   165.
+## 11 result_features_bus_volume_PM_offpeak Q3                   192.
+## 12 result_features_bus_volume_PM_offpeak max                  282.
+## 13 result_features_bus_volume_PM_peak    Q1                   147.
+## 14 result_features_bus_volume_PM_peak    Q2                   164.
+## 15 result_features_bus_volume_PM_peak    Q3                   186.
+## 16 result_features_bus_volume_PM_peak    max                  244.</code></pre>
 <pre class="r"><code># Prepare Bus data: number of bus stops and unique bus services.
 bus_data &lt;- further_df %&gt;%
   select(result_features_num_bus_stops, result_features_num_unique_bus_services) %&gt;%
@@ -716,27 +757,30 @@ ggplot(bus_data, aes(x = count)) +
 busStopService_quantile_summary &lt;- bus_data %&gt;%
   group_by(variable) %&gt;%
   summarise(
+    max = max(count),
     Q1 = quantile(count, probs = 0.25, na.rm = TRUE),
     Q2 = quantile(count, probs = 0.5, na.rm = TRUE),
     Q3 = quantile(count, probs = 0.75, na.rm = TRUE),
     .groups = &quot;drop&quot;
   ) %&gt;%
   pivot_longer(
-    cols = c(Q1, Q2, Q3),
+    cols = c(Q1, Q2, Q3, max),
     names_to = &quot;quartile&quot;,
     values_to = &quot;count&quot;
   )
 
 print(busStopService_quantile_summary)</code></pre>
-<pre><code>## # A tibble: 6 × 3
+<pre><code>## # A tibble: 8 × 3
 ##   variable                                quartile count
 ##   &lt;chr&gt;                                   &lt;chr&gt;    &lt;dbl&gt;
 ## 1 result_features_num_bus_stops           Q1        152.
 ## 2 result_features_num_bus_stops           Q2        173 
 ## 3 result_features_num_bus_stops           Q3        195.
-## 4 result_features_num_unique_bus_services Q1         45 
-## 5 result_features_num_unique_bus_services Q2         55 
-## 6 result_features_num_unique_bus_services Q3         61</code></pre>
+## 4 result_features_num_bus_stops           max       225 
+## 5 result_features_num_unique_bus_services Q1         45 
+## 6 result_features_num_unique_bus_services Q2         55 
+## 7 result_features_num_unique_bus_services Q3         61 
+## 8 result_features_num_unique_bus_services max        84</code></pre>
 <pre class="r"><code>library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -769,27 +813,30 @@ ggplot(mrt_data, aes(x = count)) +
 mrt_quantile_summary &lt;- mrt_data %&gt;%
   group_by(variable) %&gt;%
   summarise(
+    max = max(count),
     Q1 = quantile(count, probs = 0.25, na.rm = TRUE),
     Q2 = quantile(count, probs = 0.5, na.rm = TRUE),
     Q3 = quantile(count, probs = 0.75, na.rm = TRUE),
     .groups = &quot;drop&quot;
   ) %&gt;%
   pivot_longer(
-    cols = c(Q1, Q2, Q3),
+    cols = c(Q1, Q2, Q3, max),
     names_to = &quot;quartile&quot;,
     values_to = &quot;count&quot;
   )
 
 print(mrt_quantile_summary)</code></pre>
-<pre><code>## # A tibble: 6 × 3
+<pre><code>## # A tibble: 8 × 3
 ##   variable                             quartile count
 ##   &lt;chr&gt;                                &lt;chr&gt;    &lt;dbl&gt;
 ## 1 result_features_num_mrt_stations     Q1           2
 ## 2 result_features_num_mrt_stations     Q2           3
 ## 3 result_features_num_mrt_stations     Q3           6
-## 4 result_features_num_unique_mrt_lines Q1           1
-## 5 result_features_num_unique_mrt_lines Q2           1
-## 6 result_features_num_unique_mrt_lines Q3           2</code></pre>
+## 4 result_features_num_mrt_stations     max         12
+## 5 result_features_num_unique_mrt_lines Q1           1
+## 6 result_features_num_unique_mrt_lines Q2           1
+## 7 result_features_num_unique_mrt_lines Q3           2
+## 8 result_features_num_unique_mrt_lines max          5</code></pre>
 </div>
 </div>
 

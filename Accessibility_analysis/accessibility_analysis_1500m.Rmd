@@ -217,13 +217,14 @@ ggplot(bus_volume_long, aes(x = bus_volume)) +
 busVol_quantile_summary <- bus_volume_long %>%
   group_by(time_period) %>%
   summarise(
+    max = max(bus_volume),
     Q1 = quantile(bus_volume, probs = 0.25, na.rm = TRUE),
     Q2 = quantile(bus_volume, probs = 0.5, na.rm = TRUE),
     Q3 = quantile(bus_volume, probs = 0.75, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   pivot_longer(
-    cols = c(Q1, Q2, Q3),
+    cols = c(Q1, Q2, Q3, max),
     names_to = "quartile",
     values_to = "bus_volume_value"
   )
@@ -265,13 +266,14 @@ ggplot(bus_data, aes(x = count)) +
 busStopService_quantile_summary <- bus_data %>%
   group_by(variable) %>%
   summarise(
+    max = max(count),
     Q1 = quantile(count, probs = 0.25, na.rm = TRUE),
     Q2 = quantile(count, probs = 0.5, na.rm = TRUE),
     Q3 = quantile(count, probs = 0.75, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   pivot_longer(
-    cols = c(Q1, Q2, Q3),
+    cols = c(Q1, Q2, Q3, max),
     names_to = "quartile",
     values_to = "count"
   )
@@ -316,13 +318,14 @@ ggplot(mrt_data, aes(x = count)) +
 mrt_quantile_summary <- mrt_data %>%
   group_by(variable) %>%
   summarise(
+    max = max(count),
     Q1 = quantile(count, probs = 0.25, na.rm = TRUE),
     Q2 = quantile(count, probs = 0.5, na.rm = TRUE),
     Q3 = quantile(count, probs = 0.75, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   pivot_longer(
-    cols = c(Q1, Q2, Q3),
+    cols = c(Q1, Q2, Q3, max),
     names_to = "quartile",
     values_to = "count"
   )

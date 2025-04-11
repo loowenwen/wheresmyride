@@ -99,39 +99,229 @@ par(mfrow = c(1, 1))
 
 ###Exploration for Transport Efficiency scoring 
 
-combined_transport_efficiency <- function(routes) {
+
+#Coming up with a dataset of routes that represent a good spread of Singapore + speeds (to see how speeds looks like in general)
+get_coordinates <- function(searchVal, token) {
+  base_url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+  url <- paste0(base_url, "?searchVal=", URLencode(searchVal), "&returnGeom=Y&getAddrDetails=Y")
   
-  transport_scores <- numeric(length(routes))
+  response <- GET(url, add_headers(Authorization = token))
   
-  # Loop through all routes
-  for (i in 1:length(routes$duration)) {
-    
-    duration_hours <- routes$duration[[i]] / 3600
-    total_distance <- sum(routes$legs[[i]]$distance)
-    speed <- (total_distance / 1000) / duration_hours #km/h 
-    
-    # Normalize speed score (0-100)
-    max_speed <- 50  # km/h 
-    min_speed <- 3    # km/h
-    
-    transport_scores[i] <- 100 * (speed - min_speed) / (max_speed - min_speed)
-    transport_scores[i] <- max(0, min(100, transport_scores[i]))  # Clamp between 0-100
+  if (status_code(response) == 200) {
+    result <- content(response, as = "parsed")
+    if (length(result$results) > 0) {
+      coords <- result$results[[1]]
+      return(paste(coords$LATITUDE, coords$LONGITUDE, sep = ","))
+    }
   }
   
-  # Handle case where no valid scores were calculated
-  if (all(is.na(transport_scores))) return(0)
-  
-  # Combine scores with weighting
-  sorted_scores <- sort(transport_scores, decreasing = TRUE)
-  
-  # Weighted components
-  best_score <- sorted_scores[1] * 0.8
-  second_best <- sorted_scores[2] * 0.1
-  worst <- sorted_scores[3] * 0.1
-  
-  return(best_score + second_best + worst)
-
+  return(NA)
 }
+
+
+#curated sampling
+region_map <- list(
+  North = c("Woodlands", "Yishun", "Ang Mo Kio MRT", "Bishan"),
+  South = c("Sentosa Island", "VivoCity", "HarbourFront", "Southern Ridges", "Labrador Park"),
+  East = c("Changi Airport", "Jewel Changi", "Pasir Ris Park", "Bedok", "Tampines Mall", "Tanah Merah MRT", "East Coast Park"),
+  West = c("NTU", "Jurong West", "Bukit Batok", "Clementi", "Bukit Timah Nature Reserve", "Jurong East MRT"),
+  Central = c(
+    "Orchard", "Raffles Place", "Clarke Quay", "Chinatown", "Little India", "Kampong Glam", "Dhoby Ghaut", 
+    "City Hall", "Esplanade", "Merlion Park", "Bugis Junction", "Gardens by the Bay", 
+    "NUS", "SMU", "SIM", "ION Orchard", "Plaza Singapura", "Funan Mall", "Great World City", "Toa Payoh"
+  )
+)
+
+
+
+#Function to make region-aware OD pairs
+generate_diverse_OD_pairs <- function(region_map, coords_lookup, total_pairs = 100) {
+  set.seed(42)  # for reproducibility
+  
+  all_pairs <- list()
+  
+  # Helper to pick non-identical random locations from two sets
+  sample_pair <- function(from, to) {
+    repeat {
+      start <- sample(from, 1)
+      end <- sample(to, 1)
+      if (start != end) return(c(start, end))
+    }
+  }
+  
+  # Inter-region pairs (e.g., North → East)
+  region_names <- names(region_map)
+  num_inter_pairs <- floor(total_pairs * 0.7)  # 70% inter-region
+  for (i in 1:num_inter_pairs) {
+    repeat {
+      regions <- sample(region_names, 2, replace = FALSE)
+      pair <- sample_pair(region_map[[regions[1]]], region_map[[regions[2]]])
+      pair_key <- paste(pair, collapse = "_")
+      if (!pair_key %in% names(all_pairs)) {
+        all_pairs[[pair_key]] <- pair
+        break
+      }
+    }
+  }
+  
+  # Intra-region pairs (same region, more local travel)
+  num_intra_pairs <- total_pairs - num_inter_pairs
+  for (i in 1:num_intra_pairs) {
+    repeat {
+      region <- sample(region_names, 1)
+      if (length(region_map[[region]]) >= 2) {
+        pair <- sample_pair(region_map[[region]], region_map[[region]])
+        pair_key <- paste(pair, collapse = "_")
+        if (!pair_key %in% names(all_pairs)) {
+          all_pairs[[pair_key]] <- pair
+          break
+        }
+      }
+    }
+  }
+  
+  # Convert to dataframe with coordinates
+  df <- do.call(rbind, all_pairs)
+  df <- as.data.frame(df, stringsAsFactors = FALSE)
+  names(df) <- c("start_name", "end_name")
+  df$start_point <- coords_lookup[df$start_name]
+  df$end_point <- coords_lookup[df$end_name]
+  
+  return(df[, c("start_point", "end_point", "start_name", "end_name")])
+}
+
+# Get coordinate lookup from place name → lat,long
+coords_lookup <- sapply(locations, get_coordinates, token = token)
+ # Generate <100 diverse OD pairs
+diverse_routes <- generate_diverse_OD_pairs(region_map, coords_lookup, total_pairs = 150) %>% na.omit() %>% select(start_point, end_point)
+rownames(diverse_routes) <- NULL
+
+# Function to get route data for a random start and end point (single itinerary)
+get_route_info_simple <- function(route_analyzer,coordinates, time_period) {
+  
+  # Generate random start and end points
+  coordinates <- coordinates
+  
+  # Create an empty data frame to store the results
+  route_data <- data.frame(
+    start_point = character(0),
+    end_point = character(0),
+    duration = numeric(0),
+    distance = numeric(0),
+    speed = numeric(0),
+    stringsAsFactors = FALSE
+  )
+  
+  # Loop through each random route and fetch the route details
+  for (i in 1:nrow(coordinates)) {
+    start <- coordinates$start_point[i]
+    end <- coordinates$end_point[i]
+    
+    # Try to fetch route data, skip on error (like 404)
+    itinerary <- tryCatch({
+      route_analyzer$get_route_data(
+        start = start, 
+        end = end, 
+        time_period = time_period,
+        date = "04-11-2025",
+        routeType = "pt", 
+        mode = "TRANSIT", 
+        maxWalkDistance = 1000, 
+        numItineraries = 1
+      )
+    }, error = function(e) {
+      message(sprintf("Skipping route %d: Error - %s", i, e$message))
+      return(NULL)
+    })
+    
+    # If valid itinerary is returned, extract data
+    if (!is.null(itinerary)) {
+      # Extract duration and distance
+      duration_seconds <- itinerary$duration
+      total_distance <- round(sum(itinerary$legs[[1]]$distance))
+      
+      # Calculate speed in km/h
+      speed <- (total_distance / 1000) / (duration_seconds / 3600)
+      
+      # Add route data to final data frame
+      route_data <- rbind(route_data, data.frame(
+        start_point = start,
+        end_point = end,
+        duration = duration_seconds,
+        distance = total_distance,
+        speed = speed
+      ))
+    }
+  }
+  
+  return(route_data)
+}
+
+
+##get route data in terms of speed for 128 routes for all 4 time periods
+route_analyzer_instance <- RouteAnalyzer$new()
+route_info_data <- get_route_info_simple(route_analyzer_instance, coordinates = diverse_routes) #for AMpeak
+
+
+route_info_data_PMpeak <- get_route_info_simple(route_analyzer_instance, coordinates = diverse_routes, time_period = "Evening Peak (5-7pm)")
+route_info_data_AMpeak <- route_info_data
+route_info_data_PMoffpeak <- get_route_info_simple(route_analyzer_instance, coordinates = diverse_routes, time_period = "Nighttime Off-Peak (7pm-6:30am)")
+route_info_data_AMoffpeak <- get_route_info_simple(route_analyzer_instance, coordinates = diverse_routes, time_period = "Daytime Off-Peak (8:30am-5pm)")
+
+
+#extract just the speed info: 
+speed_info_data_AMpeak <- as.numeric(unlist(route_info_data_AMpeak %>% select(speed)))
+speed_info_data_AMoffpeak <- as.numeric(unlist(route_info_data_AMoffpeak %>% select(speed)))
+speed_info_data_PMpeak <- as.numeric(unlist(route_info_data_PMpeak %>% select(speed)))
+speed_info_data_PMoffpeak <- as.numeric(unlist(route_info_data_PMoffpeak %>% select(speed)))
+
+
+#check distribution:
+# Create a 2x2 grid for plots
+par(mfrow = c(2, 2))
+
+# AM Peak
+hist(speed_info_data_AMpeak, 
+     main = "Distribution of AM Peak Speeds",
+     xlab = "Speed",
+     col = "lightblue",
+     border = "black")
+
+# AM Off-peak
+hist(speed_info_data_AMoffpeak, 
+     main = "Distribution of AM Off-peak Speeds",
+     xlab = "Speed",
+     col = "lightgreen",
+     border = "black")
+
+# PM Peak
+hist(speed_info_data_PMpeak, 
+     main = "Distribution of PM Peak Speeds",
+     xlab = "Speed",
+     col = "lightpink",
+     border = "black")
+
+# PM Off-peak
+hist(speed_info_data_PMoffpeak, 
+     main = "Distribution of PM Off-peak Speeds",
+     xlab = "Speed",
+     col = "lightyellow",
+     border = "black")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

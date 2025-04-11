@@ -16,6 +16,7 @@ bus_with_planning <- readRDS(file.path(data_dir, "bus_with_planning.rds"))
 mrt_with_planning <- readRDS(file.path(data_dir, "mrt_with_planning.rds"))
 upcoming_bto <- readRDS(file.path(data_dir, "upcoming_bto.rds"))
 bus_frequencies <- readRDS(file.path(data_dir, "all_bus_services_frequencies.rds"))
+speed_bounds <- readRDS(file.path(data_dir, "speed_bounds.rds"))
 
 # Append formatted coordinates to BTO data
 upcoming_bto$Start <- sprintf("%.7f,%.8f", upcoming_bto$lat, upcoming_bto$lng)

@@ -65,17 +65,19 @@ observeEvent(input$t4_get_score, {
       `Estimated Travel Time (min)` = sample(10:60, 6)
     )
     
+    colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
+    
     mrt_df <- result$features$mrt_stop_distances %>%
       rename(Description = mrt_station, `Distance (m)` = dist) %>%
       mutate(Type = "MRT") %>%
       select(Type, Description, `Distance (m)`) %>%
-      filter(`Distance (m)` <= as.numeric(input$t4_nearby_radius))
+      filter(`Distance (m)` <= 500)
     
     bus_df <- result$features$bus_stop_distances %>%
       rename(`Distance (m)` = dist) %>%
       mutate(Type = "Bus") %>%
       select(Type, Description, `Distance (m)`) %>%
-      filter(`Distance (m)` <= as.numeric(input$t4_nearby_radius))
+      filter(`Distance (m)` <= 500)
     
     accessibility_scores$nearby_stops <- bind_rows(mrt_df, bus_df)
     
@@ -137,17 +139,19 @@ observeEvent(input$t4_recalculate, {
       `Estimated Travel Time (min)` = sample(10:60, 6)
     )
     
+    colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
+    
     mrt_df <- result$features$mrt_stop_distances %>%
       rename(Description = mrt_station, `Distance (m)` = dist) %>%
       mutate(Type = "MRT") %>%
       select(Type, Description, `Distance (m)`) %>%
-      filter(`Distance (m)` <= as.numeric(input$t4_nearby_radius))
+      filter(`Distance (m)` <= 500)
     
     bus_df <- result$features$bus_stop_distances %>%
       rename(`Distance (m)` = dist) %>%
       mutate(Type = "Bus") %>%
       select(Type, Description, `Distance (m)`) %>%
-      filter(`Distance (m)` <= as.numeric(input$t4_nearby_radius))
+      filter(`Distance (m)` <= 500)
     
     accessibility_scores$nearby_stops <- bind_rows(mrt_df, bus_df)
     

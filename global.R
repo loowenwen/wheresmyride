@@ -106,6 +106,7 @@ bus_stop_density <- bind_rows(bus_stop_density, data.frame(pln_area_n = missing_
 
 mrt_station_density <- mrt_with_planning %>%
   distinct(mrt_station, .keep_all = TRUE) %>%
+  filter(station_type == "MRT Station") %>%
   st_drop_geometry() %>%
   count(pln_area_n)
 

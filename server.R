@@ -682,7 +682,7 @@ shinyServer(function(input, output, session) {
   output$t3_radar_a_score <- renderUI({
     score <- rqs_results$a
     if (!is.null(score) && !is.na(score)) {
-      color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+      color <- case_when(score >= 60 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
       return(h2(round(score, 1), class = color, style = "font-weight: bold"))
     } else {
       return(h2("00.0", style = "font-weight: bold"))
@@ -693,7 +693,7 @@ shinyServer(function(input, output, session) {
   output$t3_radar_b_score <- renderUI({
     score <- rqs_results$b
     if (!is.null(score) && !is.na(score)) {
-      color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+      color <- case_when(score >= 60 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
       return(h2(round(score, 1), class = color, style = "font-weight: bold"))
     } else {
       return(h2("00.0", style = "font-weight: bold"))
@@ -703,7 +703,7 @@ shinyServer(function(input, output, session) {
   output$t3_radar_c_score <- renderUI({
     score <- rqs_results$c
     if (!is.null(score) && !is.na(score)) {
-      color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+      color <- case_when(score >= 60 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
       return(h2(round(score, 1), class = color, style = "font-weight: bold"))
     } else {
       return(h2("00.0", style = "font-weight: bold"))
@@ -713,7 +713,7 @@ shinyServer(function(input, output, session) {
   output$t3_radar_d_score <- renderUI({
     score <- rqs_results$d
     if (!is.null(score) && !is.na(score)) {
-      color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+      color <- case_when(score >= 60 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
       return(h2(round(score, 1), class = color, style = "font-weight: bold"))
     } else {
       return(h2("00.0", style = "font-weight: bold"))

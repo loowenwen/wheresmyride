@@ -7,29 +7,14 @@
 *.html
 
 # Local R package management
-renv
-renv.lock
 rsconnect
 *.tar.gz
 *.zip
 *.log
 
 # Entire analysis folder and unused dev files
-Accessibility_analysis
 src/old_codes.R
 src/exploration_and_prep_RQS.R
 
 # Git and security
 .git
-*.pem
-
-# Ignore all RDS except those explicitly needed
-*.rds
-!data/RDS Files/planning_area_polygons.rds
-!data/RDS Files/bus_with_planning.rds
-!data/RDS Files/mrt_with_planning.rds
-!data/RDS Files/upcoming_bto.rds
-!data/RDS Files/all_bus_services_frequencies.rds
-!data/RDS Files/mrt_stations.rds
-!data/RDS Files/bus_stops.rds
-!data/RDS Files/bus_routes.rds

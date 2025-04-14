@@ -1,5 +1,5 @@
 # Base image with R, Shiny, and geospatial libraries preinstalled
-FROM rocker/geospatial:4.3.1
+FROM rocker/geospatial:latest
 
 # Install system dependencies and Shiny Server
 RUN apt-get update && \

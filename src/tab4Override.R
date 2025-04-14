@@ -1,4 +1,4 @@
-source("predict_accessibility.R", local = TRUE)
+source("src/predict_accessibility.R", local = TRUE)
 
 # Access the upcoming_bto data frame that contains lat/lng
 get_coords_from_bto <- function(bto_label) {

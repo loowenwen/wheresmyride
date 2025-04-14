@@ -943,8 +943,8 @@ shinyServer(function(input, output, session) {
   })
 
    # --- Optionally Source Custom Logic from testServer.R ---
-   override_file <- "tab4Override.R"
-   predict_file <- "predict_accessibility.R"
+   override_file <- "src/tab4Override.R"
+   predict_file <- "src/predict_accessibility.R"
    
    if (file.exists(predict_file)) {
      message(" Loading base scoring logic from predict_accessibility.R...")

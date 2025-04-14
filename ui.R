@@ -562,6 +562,11 @@ shinyUI(
                             tags$b(tagList(icon("external-link-alt", lib = "font-awesome"), " Live App (shinyapps.io):")),
                             tags$a(href = "https://loowenwen.shinyapps.io/wheresmyride/", 
                                    "Launch Where's My Ride", target = "_blank")
+                          ),
+                          tags$li(
+                            tags$b(tagList(icon("external-link-alt", lib = "font-awesome"), " Live App (EC2 Deployment):")),
+                            tags$a(href = "http://54.206.244.199:3838", 
+                                   "Launch Where's My Ride", target = "_blank")
                           )
                         )
                  ),

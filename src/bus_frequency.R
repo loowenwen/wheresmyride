@@ -278,6 +278,14 @@ if (nrow(stop_info) == 0) {
 
 
 
+
+routes <- route_analyzer$get_route_data(start = upcoming_bto$Start[1], 
+                                        end = "1.294178,103.7698", 
+                                        date = "04-12-2025", 
+                                        time_period = "Evening Peak (5-7pm)",
+                                        maxWalkDistance = 1000)
+route_analyzer$combined_transport_efficiency(routes, speed_bounds = speed_bounds, time_period = "Evening Peak (5-7pm)")
+
 library(httr)
 library(jsonlite)
 library(dplyr)

@@ -190,11 +190,10 @@ generate_diverse_OD_pairs <- function(region_map, coords_lookup, total_pairs = 1
   return(df[, c("start_point", "end_point", "start_name", "end_name")])
 }
 
-# Get coordinate lookup from place name → lat,long
-coords_lookup <- sapply(locations, get_coordinates, token = token)
- # Generate <100 diverse OD pairs
-diverse_routes <- generate_diverse_OD_pairs(region_map, coords_lookup, total_pairs = 150) %>% na.omit() %>% select(start_point, end_point)
-rownames(diverse_routes) <- NULL
+all_places <- unique(unlist(region_map))
+coords_lookup <- sapply(all_places, function(place) get_coordinates(place, token), USE.NAMES = TRUE)
+od_pairs_df <- generate_diverse_OD_pairs(region_map, coords_lookup, total_pairs = 150) %>% select(start_point, end_point) %>% distinct()
+rownames(od_pairs_df) <- NULL
 
 # Function to get route data for a random start and end point (single itinerary)
 get_route_info_simple <- function(route_analyzer,coordinates, time_period) {
@@ -258,15 +257,17 @@ get_route_info_simple <- function(route_analyzer,coordinates, time_period) {
 }
 
 
-##get route data in terms of speed for 128 routes for all 4 time periods
+##get route data in terms of speed for 150 routes for all 4 time periods
 route_analyzer_instance <- RouteAnalyzer$new()
-route_info_data <- get_route_info_simple(route_analyzer_instance, coordinates = diverse_routes) #for AMpeak
 
 
-route_info_data_PMpeak <- get_route_info_simple(route_analyzer_instance, coordinates = diverse_routes, time_period = "Evening Peak (5-7pm)")
-route_info_data_AMpeak <- route_info_data
-route_info_data_PMoffpeak <- get_route_info_simple(route_analyzer_instance, coordinates = diverse_routes, time_period = "Nighttime Off-Peak (7pm-6:30am)")
-route_info_data_AMoffpeak <- get_route_info_simple(route_analyzer_instance, coordinates = diverse_routes, time_period = "Daytime Off-Peak (8:30am-5pm)")
+
+route_info_data_PMpeak <- get_route_info_simple(route_analyzer_instance, coordinates = od_pairs_df, time_period = "Evening Peak (5-7pm)")
+route_info_data_PMoffpeak <- get_route_info_simple(route_analyzer_instance, coordinates = od_pairs_df, time_period = "Nighttime Off-Peak (7pm-6:30am)")
+route_info_data_AMoffpeak <- get_route_info_simple(route_analyzer_instance, coordinates = od_pairs_df, time_period = "Daytime Off-Peak (8:30am-5pm)")
+route_info_data_AMpeak <- get_route_info_simple(route_analyzer_instance, coordinates = od_pairs_df, time_period = "Morning Peak (6:30-8:30am)")
+
+
 
 
 #extract just the speed info: 
@@ -275,6 +276,41 @@ speed_info_data_AMoffpeak <- as.numeric(unlist(route_info_data_AMoffpeak %>% sel
 speed_info_data_PMpeak <- as.numeric(unlist(route_info_data_PMpeak %>% select(speed)))
 speed_info_data_PMoffpeak <- as.numeric(unlist(route_info_data_PMoffpeak %>% select(speed)))
 
+mean <- mean(speed_info_data_AMpeak)
+sd <- sd(speed_info_data_AMpeak)
+
+z_score_transport_efficiency <- function(speed, mean_speed, sd_speed) {
+  # Compute the z-score
+  z <- (speed - mean_speed) / sd_speed
+  
+  # Convert z-score to a percentile (0–100) using the normal CDF
+  score <- pnorm(z) * 100
+  
+  return(score)
+}
+
+
+
+speed_stats <- list(
+  "Morning Peak (6:30-8:30am)" = list(
+    mean = mean(speed_info_data_AMpeak),
+    sd   = sd(speed_info_data_AMpeak)
+  ),
+  "Daytime Off-Peak (8:30am-5pm)" = list(
+    mean = mean(speed_info_data_AMoffpeak),
+    sd   = sd(speed_info_data_AMoffpeak)
+  ),
+  "Evening Peak (5-7pm)" = list(
+    mean = mean(speed_info_data_PMpeak),
+    sd   = sd(speed_info_data_PMpeak)
+  ),
+  "Nighttime Off-Peak (7pm-6:30am)" = list(
+    mean = mean(speed_info_data_PMoffpeak),
+    sd   = sd(speed_info_data_PMoffpeak)
+  )
+)
+
+z_score_transport_efficiency(19, mean_speed = mean, sd_speed = sd)
 
 #check distribution:
 # Create a 2x2 grid for plots

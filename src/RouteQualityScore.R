@@ -225,31 +225,33 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                },
                                
                                #transport score
-                               combined_transport_efficiency = function(routes, speed_bounds = speed_bounds, time_period) {
+                               combined_transport_efficiency = function(routes, speed_stats = speed_stats, time_period) {
                                  
                                  
-                                 transport_scores <- numeric(length(routes))
-                                 bounds <- speed_bounds[[time_period]]
+                                 transport_scores <- numeric(length(routes$duration))
+                                 mean <- speed_stats[[time_period]]$mean
+                                 sd <- speed_stats[[time_period]]$sd
                                  
     
-                                 
                                  # Loop through all routes
                                  for (i in 1:length(routes$duration)) {
                                    
                                    duration_hours <- routes$duration[[i]] / 3600
                                    total_distance <- sum(routes$legs[[i]]$distance)
                                    speed <- (total_distance / 1000) / duration_hours #km/h 
+                                   cat(sprintf("Route %d: Speed = %.2f km/h\n", i, speed))
 
-                                    score <- ((speed - bounds[1]) / (bounds[2] - bounds[1]))* 100
+                                    z <- (speed - mean) / sd
+                                    score <-  pnorm(z) * 100
 
-                                    transport_scores[i] <- round(score)
+                                    transport_scores[i] <- score
                                  }
                                  
                                  # Handle case where no valid scores were calculated
                                  if (all(is.na(transport_scores))) return(0)
  
 
-                                 return(mean(transport_scores))
+                                 return (mean(transport_scores))
                                },
                                
                                #comfort score
@@ -452,7 +454,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    # Calculate component scores
                                    scores <- c(
                                      
-                                     transport = round(self$combined_transport_efficiency(routes, speed_bounds = speed_bounds, time_period)),
+                                     transport = round(self$combined_transport_efficiency(routes, speed_stats = speed_stats, time_period)),
                                      comfort = round(self$calculate_comfort_score(routes_metrics)),
                                      robustness = self$calculate_robustness_score(fixed_sequences, routes),
                                      service = self$calculate_route_options_service_quality(routes, time_period, freq_data = bus_frequencies)
@@ -490,6 +492,17 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                              )
 )
                                                      
+
+
+
+routes <- route_analyzer_instance$get_route_data(start = upcoming_bto$Start[1],
+                                       end = get_coordinates_from_postal(150166),
+                                       date = "04-14-2025",
+                                       time_period = "Morning Peak (6:30-8:30am)", 
+                                       maxWalkDistance = 5000)
+time <- (routes$duration[1])/3600
+distance <- sum(routes$legs[[1]]$distance)/1000
+distance/time                                       
 
 
 

@@ -868,7 +868,7 @@ shinyServer(function(input, output, session) {
     
     score <- get_scores()$overall
     color <- case_when(
-      score >= 80 ~ "text-success",
+      score >= 60 ~ "text-success",
       score >= 40 ~ "text-warning",
       TRUE ~ "text-danger"
     )
@@ -882,9 +882,9 @@ shinyServer(function(input, output, session) {
     
     score <- get_scores()$overall
     interpretation <- case_when(
-      score >= 80 ~ "Excellent accessibility - this location offers top-tier transport connectivity and convenience.",
-      score >= 60 ~ "Good accessibility - most destinations are easily reachable with decent transport options.",
-      score >= 40 ~ "Moderate accessibility - there are some transport links, but coverage or convenience may be limited.",
+      score >= 60 ~ "Excellent accessibility - this location offers top-tier transport connectivity and convenience.",
+      score >= 40 ~ "Good accessibility - most destinations are easily reachable with decent transport options.",
+      score >= 20 ~ "Moderate accessibility - there are some transport links, but coverage or convenience may be limited.",
       TRUE ~ "Poor accessibility - the area has limited transport options and may be harder to reach."
     )
     
@@ -894,28 +894,28 @@ shinyServer(function(input, output, session) {
   output$t4_mrt_score <- renderUI({
     if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
     score <- get_scores()$mrt
-    color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+    color <- case_when(score >= 60 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
     h2(score, class = color, style = "font-weight: bold")
   })
   
   output$t4_bus_score <- renderUI({
     if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
     score <- get_scores()$bus
-    color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+    color <- case_when(score >= 60 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
     h2(score, class = color, style = "font-weight: bold")
   })
   
   output$t4_walk_score <- renderUI({
     if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
     score <- get_scores()$walk
-    color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+    color <- case_when(score >= 60 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
     h2(score, class = color, style = "font-weight: bold")
   })
   
   output$t4_congestion_score <- renderUI({
     if (!initial_calculation()) return(h2("00.0", style = "font-weight: bold"))
     score <- get_scores()$congestion
-    color <- case_when(score >= 80 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
+    color <- case_when(score >= 60 ~ "text-success", score >= 40 ~ "text-warning", TRUE ~ "text-danger")
     h2(score, class = color, style = "font-weight: bold")
   })
   

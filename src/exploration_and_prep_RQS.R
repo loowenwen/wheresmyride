@@ -268,7 +268,10 @@ route_info_data_AMoffpeak <- get_route_info_simple(route_analyzer_instance, coor
 route_info_data_AMpeak <- get_route_info_simple(route_analyzer_instance, coordinates = od_pairs_df, time_period = "Morning Peak (6:30-8:30am)")
 
 
-
+saveRDS(route_info_data_PMpeak, "data/RDS Files/route_info_data_PMpeak.rds")
+saveRDS(route_info_data_AMpeak, "data/RDS Files/route_info_data_AMpeak.rds")
+saveRDS(route_info_data_AMoffpeak, "data/RDS Files/route_info_data_AMoffpeak.rds")
+saveRDS(route_info_data_PMoffpeak, "data/RDS Files/route_info_data_PMoffpeak.rds")
 
 #extract just the speed info: 
 speed_info_data_AMpeak <- as.numeric(unlist(route_info_data_AMpeak %>% select(speed)))

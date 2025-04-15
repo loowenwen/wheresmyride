@@ -1,4 +1,7 @@
 source("src/predict_accessibility.R", local = TRUE)
+source("src/traveltime_keylocations.R", local = TRUE)
+source("src/RouteQualityScore.R", local = TRUE)
+source("global.R", local = TRUE)
 
 # Access the upcoming_bto data frame that contains lat/lng
 get_coords_from_bto <- function(bto_label) {
@@ -60,11 +63,26 @@ observeEvent(input$t4_get_score, {
     accessibility_scores$walk_score <- round(breakdown$walkability_score, 1)
     accessibility_scores$congestion_score <- round(breakdown$congestion_score, 1)
     
+    access_time_period <- reactive({
+      req(input$t4_travel_time_preference)
+      switch(input$t4_travel_time_preference,
+             "AM_peak" = "Morning Peak (6:30-8:30am)",
+             "PM_peak" = "Evening Peak (5-7pm)",
+             "AM_offpeak" = "Daytime Off-Peak (8:30am-5pm)",
+             "PM_offpeak" = "Nighttime Off-Peak (7pm-6:30am)")
+    })
+    travel_time_df <- build_travel_time_df(location_input, 
+                                           time_period = access_time_period(), 
+                                           route_analyzer_instance = RouteAnalyzer$new(), 
+                                           date = format(Sys.Date(), "%m-%d-%Y"))
     accessibility_scores$travel_times <- data.frame(
-      Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
-      `Estimated Travel Time (min)` = sample(10:60, 6)
-    )
+      Location = travel_time_df$Name,
+      TravelTime_Min = travel_time_df$EstimatedTimeMin)
     
+    #accessibility_scores$travel_times <- data.frame(
+      #Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
+      #`Estimated Travel Time (min)` = sample(10:60, 6)
+    #)
     colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
     
     mrt_df <- result$features$mrt_stop_distances %>%
@@ -133,11 +151,6 @@ observeEvent(input$t4_recalculate, {
     accessibility_scores$bus_score <- round(breakdown$score_bus, 1)
     accessibility_scores$walk_score <- round(breakdown$walkability_score, 1)
     accessibility_scores$congestion_score <- round(breakdown$congestion_score, 1)
-    
-    accessibility_scores$travel_times <- data.frame(
-      Location = c("Raffles Place", "One-North", "Orchard Road", "Jurong East", "Changi Airport", "Singapore General Hospital"),
-      `Estimated Travel Time (min)` = sample(10:60, 6)
-    )
     
     colnames(accessibility_scores$travel_times)[2] <- "Estimated Travel Time (min)"
     

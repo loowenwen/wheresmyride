@@ -495,14 +495,4 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
 
 
 
-routes <- route_analyzer_instance$get_route_data(start = upcoming_bto$Start[1],
-                                       end = get_coordinates_from_postal(150166),
-                                       date = "04-14-2025",
-                                       time_period = "Morning Peak (6:30-8:30am)", 
-                                       maxWalkDistance = 5000)
-time <- (routes$duration[1])/3600
-distance <- sum(routes$legs[[1]]$distance)/1000
-distance/time                                       
-
-
 

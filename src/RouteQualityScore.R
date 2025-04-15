@@ -236,8 +236,8 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                  # Loop through all routes
                                  for (i in 1:length(routes$duration)) {
                                    
-                                   duration_hours <- routes$duration[[i]] / 3600
-                                   total_distance <- sum(routes$legs[[i]]$distance)
+                                   duration_hours <- (routes$duration[[i]] - routes$walkTime[[i]])/3600
+                                   total_distance <- sum(routes$legs[[i]]$distance) - routes$walkDistance[[i]]
                                    speed <- (total_distance / 1000) / duration_hours #km/h 
                                    cat(sprintf("Route %d: Speed = %.2f km/h\n", i, speed))
 

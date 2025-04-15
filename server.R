@@ -537,7 +537,7 @@ shinyServer(function(input, output, session) {
         results <- route_analyzer$calculate_rqs(
           start = bto_coords,
           end = input$t3_destination_postal,
-          date = "03-24-2025",
+          date = format(Sys.Date(), "%m-%d-%Y"),
           time_period = rqs_time_period(),
           maxWalkDistance = 1000,
           weights = rqs_weights()
@@ -556,7 +556,7 @@ shinyServer(function(input, output, session) {
         results <- route_analyzer$calculate_rqs(
           start = bto_coords,
           end = input$t3_destination_postal,
-          date = "03-24-2025",
+          date = format(Sys.Date(), "%m-%d-%Y"),
           time_period = rqs_time_period(),
           maxWalkDistance = 1000,
           weights = rqs_weights()
@@ -575,7 +575,7 @@ shinyServer(function(input, output, session) {
         results <- route_analyzer$calculate_rqs(
           start = bto_coords,
           end = input$t3_destination_postal,
-          date = "03-24-2025",
+          date = format(Sys.Date(), "%m-%d-%Y"),
           time_period = rqs_time_period(),
           maxWalkDistance = 1000,
           weights = rqs_weights()
@@ -594,7 +594,7 @@ shinyServer(function(input, output, session) {
         results <- route_analyzer$calculate_rqs(
           start = bto_coords,
           end = input$t3_destination_postal,
-          date = "03-24-2025",
+          date = format(Sys.Date(), "%m-%d-%Y"),
           time_period = rqs_time_period(),
           maxWalkDistance = 1000,
           weights = rqs_weights()
@@ -722,6 +722,10 @@ shinyServer(function(input, output, session) {
   
 
   # ==== TAB 4: Accessibility Dashboard ====
+
+  
+  
+  
   # If user types in postal code, clear BTO selection
   observeEvent(input$t4_postal_code, {
     if (nzchar(input$t4_postal_code)) {

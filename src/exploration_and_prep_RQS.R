@@ -236,8 +236,8 @@ get_route_info_simple <- function(route_analyzer,coordinates, time_period) {
     # If valid itinerary is returned, extract data
     if (!is.null(itinerary)) {
       # Extract duration and distance
-      duration_seconds <- itinerary$duration
-      total_distance <- round(sum(itinerary$legs[[1]]$distance))
+      duration_seconds <- itinerary$duration - itinerary$walkTime  #only one route
+      total_distance <- round(sum(itinerary$legs[[1]]$distance)) - itinerary$walkDistance
       
       # Calculate speed in km/h
       speed <- (total_distance / 1000) / (duration_seconds / 3600)
@@ -279,6 +279,14 @@ speed_info_data_AMoffpeak <- as.numeric(unlist(route_info_data_AMoffpeak %>% sel
 speed_info_data_PMpeak <- as.numeric(unlist(route_info_data_PMpeak %>% select(speed)))
 speed_info_data_PMoffpeak <- as.numeric(unlist(route_info_data_PMoffpeak %>% select(speed)))
 
+
+speed_info_data_PMoffpeak <- speed_info_data_PMoffpeak[is.finite(speed_info_data_PMoffpeak)]
+
+
+
+
+
+
 mean <- mean(speed_info_data_AMpeak)
 sd <- sd(speed_info_data_AMpeak)
 
@@ -296,22 +304,23 @@ z_score_transport_efficiency <- function(speed, mean_speed, sd_speed) {
 
 speed_stats <- list(
   "Morning Peak (6:30-8:30am)" = list(
-    mean = mean(speed_info_data_AMpeak),
-    sd   = sd(speed_info_data_AMpeak)
+    mean = mean(speed_info_data_AMpeak[is.finite(speed_info_data_AMpeak)]),
+    sd   = sd(speed_info_data_AMpeak[is.finite(speed_info_data_AMpeak)])
   ),
   "Daytime Off-Peak (8:30am-5pm)" = list(
-    mean = mean(speed_info_data_AMoffpeak),
-    sd   = sd(speed_info_data_AMoffpeak)
+    mean = mean(speed_info_data_AMoffpeak[is.finite(speed_info_data_AMoffpeak)]),
+    sd   = sd(speed_info_data_AMoffpeak[is.finite(speed_info_data_AMoffpeak)])
   ),
   "Evening Peak (5-7pm)" = list(
-    mean = mean(speed_info_data_PMpeak),
-    sd   = sd(speed_info_data_PMpeak)
+    mean = mean(speed_info_data_PMpeak[is.finite(speed_info_data_PMpeak)]),
+    sd   = sd(speed_info_data_PMpeak[is.finite(speed_info_data_PMpeak)])
   ),
   "Nighttime Off-Peak (7pm-6:30am)" = list(
-    mean = mean(speed_info_data_PMoffpeak),
-    sd   = sd(speed_info_data_PMoffpeak)
+    mean = mean(speed_info_data_PMpeak[is.finite(speed_info_data_PMoffpeak)]),
+    sd   = sd(speed_info_data_PMpeak[is.finite(speed_info_data_PMoffpeak)])
   )
 )
+
 
 z_score_transport_efficiency(19, mean_speed = mean, sd_speed = sd)
 

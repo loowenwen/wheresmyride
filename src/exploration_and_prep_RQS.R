@@ -121,14 +121,31 @@ get_coordinates <- function(searchVal, token) {
 
 #curated sampling
 region_map <- list(
-  North = c("Woodlands", "Yishun", "Ang Mo Kio MRT", "Bishan"),
-  South = c("Sentosa Island", "VivoCity", "HarbourFront", "Southern Ridges", "Labrador Park"),
-  East = c("Changi Airport", "Jewel Changi", "Pasir Ris Park", "Bedok", "Tampines Mall", "Tanah Merah MRT", "East Coast Park"),
-  West = c("NTU", "Jurong West", "Bukit Batok", "Clementi", "Bukit Timah Nature Reserve", "Jurong East MRT"),
+  North = c(
+    "Woodlands", "Yishun", "Ang Mo Kio MRT", "Bishan", "Sembawang", "Canberra", 
+    "Admiralty", "Khatib", "Springleaf", "Upper Thomson", "Lentor"
+  ),
+  South = c(
+    "Sentosa Island", "VivoCity", "HarbourFront", "Southern Ridges", "Labrador Park", 
+    "Telok Blangah", "Mount Faber", "Keppel Bay", "Pasir Panjang", "Haw Par Villa"
+  ),
+  East = c(
+    "Changi Airport", "Jewel Changi", "Pasir Ris Park", "Bedok", "Tampines Mall", 
+    "Tanah Merah MRT", "East Coast Park", "Siglap", "Kembangan", "Marine Parade", 
+    "Simei", "Expo", "Paya Lebar", "Geylang Serai"
+  ),
+  West = c(
+    "NTU", "Jurong West", "Bukit Batok", "Clementi", "Bukit Timah Nature Reserve", 
+    "Jurong East MRT", "Lakeside", "Boon Lay", "Pioneer", "Dover", "Holland Village", 
+    "West Coast Park", "Joo Koon", "Teban Gardens"
+  ),
   Central = c(
-    "Orchard", "Raffles Place", "Clarke Quay", "Chinatown", "Little India", "Kampong Glam", "Dhoby Ghaut", 
-    "City Hall", "Esplanade", "Merlion Park", "Bugis Junction", "Gardens by the Bay", 
-    "NUS", "SMU", "SIM", "ION Orchard", "Plaza Singapura", "Funan Mall", "Great World City", "Toa Payoh"
+    "Orchard", "Raffles Place", "Clarke Quay", "Chinatown", "Little India", 
+    "Kampong Glam", "Dhoby Ghaut", "City Hall", "Esplanade", "Merlion Park", 
+    "Bugis Junction", "Gardens by the Bay", "NUS", "SMU", "SIM", "ION Orchard", 
+    "Plaza Singapura", "Funan Mall", "Great World City", "Toa Payoh", "Novena", 
+    "Newton", "Tiong Bahru", "Balestier", "Farrer Park", "Rochor", "Redhill", 
+    "Bukit Merah", "Outram Park"
   )
 )
 
@@ -192,7 +209,7 @@ generate_diverse_OD_pairs <- function(region_map, coords_lookup, total_pairs = 1
 
 all_places <- unique(unlist(region_map))
 coords_lookup <- sapply(all_places, function(place) get_coordinates(place, token), USE.NAMES = TRUE)
-od_pairs_df <- generate_diverse_OD_pairs(region_map, coords_lookup, total_pairs = 150) %>% select(start_point, end_point) %>% distinct()
+od_pairs_df <- generate_diverse_OD_pairs(region_map, coords_lookup, total_pairs = 500) %>% select(start_point, end_point) %>% distinct()
 rownames(od_pairs_df) <- NULL
 
 # Function to get route data for a random start and end point (single itinerary)
@@ -236,8 +253,8 @@ get_route_info_simple <- function(route_analyzer,coordinates, time_period) {
     # If valid itinerary is returned, extract data
     if (!is.null(itinerary)) {
       # Extract duration and distance
-      duration_seconds <- itinerary$duration - itinerary$walkTime  #only one route
-      total_distance <- round(sum(itinerary$legs[[1]]$distance)) - itinerary$walkDistance
+      duration_seconds <- itinerary$duration 
+      total_distance <- round(sum(itinerary$legs[[1]]$distance)) 
       
       # Calculate speed in km/h
       speed <- (total_distance / 1000) / (duration_seconds / 3600)
@@ -267,66 +284,38 @@ route_info_data_PMoffpeak <- get_route_info_simple(route_analyzer_instance, coor
 route_info_data_AMoffpeak <- get_route_info_simple(route_analyzer_instance, coordinates = od_pairs_df, time_period = "Daytime Off-Peak (8:30am-5pm)")
 route_info_data_AMpeak <- get_route_info_simple(route_analyzer_instance, coordinates = od_pairs_df, time_period = "Morning Peak (6:30-8:30am)")
 
-
-saveRDS(route_info_data_PMpeak, "data/RDS Files/route_info_data_PMpeak.rds")
-saveRDS(route_info_data_AMpeak, "data/RDS Files/route_info_data_AMpeak.rds")
-saveRDS(route_info_data_AMoffpeak, "data/RDS Files/route_info_data_AMoffpeak.rds")
-saveRDS(route_info_data_PMoffpeak, "data/RDS Files/route_info_data_PMoffpeak.rds")
-
-#extract just the speed info: 
-speed_info_data_AMpeak <- as.numeric(unlist(route_info_data_AMpeak %>% select(speed)))
-speed_info_data_AMoffpeak <- as.numeric(unlist(route_info_data_AMoffpeak %>% select(speed)))
-speed_info_data_PMpeak <- as.numeric(unlist(route_info_data_PMpeak %>% select(speed)))
-speed_info_data_PMoffpeak <- as.numeric(unlist(route_info_data_PMoffpeak %>% select(speed)))
-
-
-speed_info_data_PMoffpeak <- speed_info_data_PMoffpeak[is.finite(speed_info_data_PMoffpeak)]
+saveRDS(sampled_route_datasets, "data/RDS Files/sampled_route_datasets.rds")
 
 
 
 
-
-
-mean <- mean(speed_info_data_AMpeak)
-sd <- sd(speed_info_data_AMpeak)
-
-z_score_transport_efficiency <- function(speed, mean_speed, sd_speed) {
-  # Compute the z-score
-  z <- (speed - mean_speed) / sd_speed
+sampled_route_datasets <- list(
+  AMpeak = route_info_data_AMpeak,
+  PMpeak = route_info_data_PMpeak,
+  AMoffpeak = route_info_data_AMoffpeak,
+  PMoffpeak = route_info_data_PMoffpeak
   
-  # Convert z-score to a percentile (0–100) using the normal CDF
-  score <- pnorm(z) * 100
-  
-  return(score)
-}
+)
 
-
-
-speed_stats <- list(
-  "Morning Peak (6:30-8:30am)" = list(
-    mean = mean(speed_info_data_AMpeak[is.finite(speed_info_data_AMpeak)]),
-    sd   = sd(speed_info_data_AMpeak[is.finite(speed_info_data_AMpeak)])
-  ),
-  "Daytime Off-Peak (8:30am-5pm)" = list(
-    mean = mean(speed_info_data_AMoffpeak[is.finite(speed_info_data_AMoffpeak)]),
-    sd   = sd(speed_info_data_AMoffpeak[is.finite(speed_info_data_AMoffpeak)])
-  ),
-  "Evening Peak (5-7pm)" = list(
-    mean = mean(speed_info_data_PMpeak[is.finite(speed_info_data_PMpeak)]),
-    sd   = sd(speed_info_data_PMpeak[is.finite(speed_info_data_PMpeak)])
-  ),
-  "Nighttime Off-Peak (7pm-6:30am)" = list(
-    mean = mean(speed_info_data_PMpeak[is.finite(speed_info_data_PMoffpeak)]),
-    sd   = sd(speed_info_data_PMpeak[is.finite(speed_info_data_PMoffpeak)])
-  )
+speed_datasets <- list(
+  "Morning Peak (6:30-8:30am)" = as.numeric(unlist(route_info_data_AMpeak %>% select(speed))),
+  "Daytime Off-Peak (8:30am-5pm)" = as.numeric(unlist(route_info_data_AMoffpeak %>% select(speed))),
+  "Evening Peak (5-7pm)"= as.numeric(unlist(route_info_data_PMpeak %>% select(speed))),
+  "Nighttime Off-Peak (7pm-6:30am)" = as.numeric(unlist(route_info_data_PMoffpeak %>% select(speed)))
 )
 
 
-z_score_transport_efficiency(19, mean_speed = mean, sd_speed = sd)
+saveRDS(speed_datasets, "data/RDS Files/speed_datasets.rds")
+
 
 #check distribution:
 # Create a 2x2 grid for plots
 par(mfrow = c(2, 2))
+
+
+
+
+
 
 # AM Peak
 hist(speed_info_data_AMpeak, 

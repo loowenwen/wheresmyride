@@ -225,12 +225,11 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                },
                                
                                #transport score
-                               combined_transport_efficiency = function(routes, speed_stats = speed_stats, time_period) {
+                               combined_transport_efficiency = function(routes, speed_stats = speed_datasets, time_period) {
                                  
                                  
                                  transport_scores <- numeric(length(routes$duration))
-                                 mean <- speed_stats[[time_period]]$mean
-                                 sd <- speed_stats[[time_period]]$sd
+                                 speed_data <- speed_datasets[[time_period]]
                                  
     
                                  # Loop through all routes
@@ -241,9 +240,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    speed <- (total_distance / 1000) / duration_hours #km/h 
                                    cat(sprintf("Route %d: Speed = %.2f km/h\n", i, speed))
 
-                                    z <- (speed - mean) / sd
-                                    score <-  pnorm(z) * 100
-
+                                    score <- ecdf(speed_data)(speed) * 100
                                     transport_scores[i] <- score
                                  }
                                  
@@ -454,7 +451,7 @@ RouteAnalyzer <- R6::R6Class("RouteAnalyzer",
                                    # Calculate component scores
                                    scores <- c(
                                      
-                                     transport = round(self$combined_transport_efficiency(routes, speed_stats = speed_stats, time_period)),
+                                     transport = round(self$combined_transport_efficiency(routes, speed_stats = speed_datasets, time_period)),
                                      comfort = round(self$calculate_comfort_score(routes_metrics)),
                                      robustness = self$calculate_robustness_score(fixed_sequences, routes),
                                      service = self$calculate_route_options_service_quality(routes, time_period, freq_data = bus_frequencies)

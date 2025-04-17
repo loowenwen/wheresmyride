@@ -468,6 +468,21 @@ shinyServer(function(input, output, session) {
     
   # ==== TAB 3: Comparing BTO Estates ====
   
+  # clickable pop-up modal for the different factors
+  observeEvent(input$explain_factors, {
+    showModal(modalDialog(
+      title = "Understanding the Route Quality Factors",
+      HTML(
+        "<b><i class='fas fa-tachometer-alt'></i> Trip Speed:</b> How fast will I get there? This measures total travel time and route efficiency.<br><br>
+       <b><i class='fas fa-bus'></i> Ride Comfort:</b> How pleasant is the journey? Less walking and fewer transfers = higher comfort.<br><br>
+       <b><i class='fas fa-exclamation-triangle'></i> Route Reliability:</b> Are there alternative routes or backup modes?<br><br>
+       <b><i class='fas fa-clock'></i> Transport Frequency:</b> How frequent are the buses or trains? Measured using waiting time during your selected travel period."
+      ),
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
+  })
+  
   # Initialize route analyzer
   route_analyzer <- RouteAnalyzer$new()
   
